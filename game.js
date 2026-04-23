@@ -72,31 +72,16 @@
     gameState.serverSeedHash = hashString(`hash-${gameState.serverSeed}`);
   }
 
-  function generateCrashPoint(nonce) {
-    const r = createRoundRng(nonce);
-    const random = r();
+  function generateCrashPoint() {
+    const random = Math.random();
     let point;
-    if (random < 0.33) point = 1 + r() * 0.99;
-    else if (random < 0.6) point = 2 + r() * 2.99;
-    else if (random < 0.8) point = 5 + r() * 4.99;
-    else if (random < 0.92) point = 10 + r() * 39.99;
-    else if (random < 0.97) point = 50 + r() * 49.99;
-    else if (random < 0.995) point = 100 + r() * 899.99;
-    else point = 1000 + r() * 9000;
-    return clamp(Number(point.toFixed(2)), 1, 10000);
-  }
-  function generateSharedCrashPoint(nonce) {
-    const [a, b, c, d] = cyrb128(`shared-round-${nonce}`);
-    const r = sfc32(a, b, c, d);
-    const random = r();
-    let point;
-    if (random < 0.33) point = 1 + r() * 0.99;
-    else if (random < 0.6) point = 2 + r() * 2.99;
-    else if (random < 0.8) point = 5 + r() * 4.99;
-    else if (random < 0.92) point = 10 + r() * 39.99;
-    else if (random < 0.97) point = 50 + r() * 49.99;
-    else if (random < 0.995) point = 100 + r() * 899.99;
-    else point = 1000 + r() * 9000;
+    if (random < 0.33) point = 1 + Math.random() * 0.99;
+    else if (random < 0.6) point = 2 + Math.random() * 2.99;
+    else if (random < 0.8) point = 5 + Math.random() * 4.99;
+    else if (random < 0.92) point = 10 + Math.random() * 39.99;
+    else if (random < 0.97) point = 50 + Math.random() * 49.99;
+    else if (random < 0.995) point = 100 + Math.random() * 899.99;
+    else point = 1000 + Math.random() * 9000;
     return clamp(Number(point.toFixed(2)), 1, 10000);
   }
   function multiplierFromElapsedMs(ms) { return Math.exp((ms / 1000) * 0.34); }
@@ -257,7 +242,7 @@
       playerCashedOut: false
     };
     gameState.roundId = `round-${gameState.nonce + 1}`;
-    gameState.crashPoint = generateSharedCrashPoint(gameState.nonce + 1);
+    gameState.crashPoint = generateCrashPoint();
     gameState.isLuckyRound = roundRng() < CONFIG.LUCKY_ROUND_CHANCE;
     gameState.countdownStartMs = Date.now();
     gameState.countdownDurationMs = 10000;
@@ -607,7 +592,7 @@
     const buckets = { "1x-1.99x": 0, "2x-4.99x": 0, "5x-9.99x": 0, "10x-49.99x": 0, "50x-99.99x": 0, "100x-999.99x": 0, "1000x-10000x": 0 };
     const values = [];
     for (let i = 0; i < rounds; i += 1) {
-      const p = generateCrashPoint(gameState.nonce + i + 1);
+      const p = generateCrashPoint();
       values.push(p);
       if (p < 2) buckets["1x-1.99x"] += 1;
       else if (p < 5) buckets["2x-4.99x"] += 1;
