@@ -24,7 +24,7 @@
         autoStopWins: document.getElementById("auto-stop-wins"),
         autoStopLosses: document.getElementById("auto-stop-losses"),
         autoStopBalance: document.getElementById("auto-stop-balance"),
-        tabs: Array.from(document.querySelectorAll("[data-tab]")),
+        tabs: Array.from(document.querySelectorAll(".dock-nav .dock-btn[data-tab], .hud-icon-btn[data-tab]")),
         tabPanels: {
           play: document.getElementById("panel-play"),
           collection: document.getElementById("panel-collection"),
@@ -48,7 +48,19 @@
         milestoneFeed: document.getElementById("milestone-feed"),
         resetSaveButton: document.getElementById("reset-save-button"),
         audioToggle: document.getElementById("audio-toggle"),
-        signOutButton: document.getElementById("signout-button")
+        signOutButton: document.getElementById("signout-button"),
+        crewAidButton: document.getElementById("crew-aid-button"),
+        debtIndicator: document.getElementById("debt-indicator"),
+        debtAmount: document.getElementById("debt-amount"),
+        debtBarFill: document.getElementById("debt-bar-fill"),
+        recoveryHub: document.getElementById("recovery-hub"),
+        roundModeBanner: document.getElementById("round-mode-banner"),
+        recoveryEmergencyMeta: document.getElementById("recovery-emergency-meta"),
+        recoveryDailyMeta: document.getElementById("recovery-daily-meta"),
+        recoveryDailyLadder: document.getElementById("recovery-daily-ladder"),
+        recoverySecondMeta: document.getElementById("recovery-second-meta"),
+        recoveryFreeMeta: document.getElementById("recovery-free-meta"),
+        recoveryLoanMeta: document.getElementById("recovery-loan-meta")
       };
       this.currentLeaderboardTab = "highestMultiplier";
       this.setupResponsiveMode();
@@ -90,6 +102,9 @@
       if (this.el.signOutButton) {
         this.el.signOutButton.addEventListener("click", () => controller.onSignOut());
       }
+      if (this.el.crewAidButton && controller.openRecoveryHub) {
+        this.el.crewAidButton.addEventListener("click", () => controller.openRecoveryHub());
+      }
 
       adjustButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -99,7 +114,8 @@
 
       presetButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
-          controller.setBetInput(Number(btn.dataset.preset));
+          if (btn.dataset.preset === "max") controller.setMaxBet();
+          else controller.setBetInput(Number(btn.dataset.preset));
         });
       });
 
@@ -123,13 +139,24 @@
       this.el.balance.textContent = this.formatMoney(balance);
     }
 
+    setCrewAidVisible(visible) {
+      if (!this.el.crewAidButton) return;
+      this.el.crewAidButton.classList.toggle("hidden", !visible);
+    }
+
     setPhase(text) {
       this.el.phaseLabel.textContent = text;
     }
 
     setMultiplier(multiplier) {
-      this.el.multiplier.textContent = `${multiplier.toFixed(2)}x`;
+      const m = Math.max(1, Number(multiplier) || 1);
+      this.el.multiplier.textContent = `${m.toFixed(2)}x`;
       this.el.multiplier.style.color = multiplier >= 10 ? "#ffd88f" : "#ffffff";
+      const norm = Math.min(1, Math.max(0, Math.log10(m) / Math.log10(10000)));
+      const marker = document.getElementById("multiplier-rail-marker");
+      if (marker) {
+        marker.style.bottom = `calc(${norm * 100}% - 9px)`;
+      }
     }
 
     setDepth(depthNorm) {
@@ -148,7 +175,10 @@
 
     setBetInfo(currentBet, potentialWin) {
       this.el.currentBet.textContent = this.formatMoney(currentBet);
-      this.el.potentialWin.textContent = this.formatMoney(potentialWin);
+      const pot = Number(potentialWin) || 0;
+      this.el.potentialWin.textContent = this.formatMoney(pot);
+      const cashLine = document.getElementById("cashout-amount-line");
+      if (cashLine) cashLine.textContent = this.formatMoney(pot);
     }
 
     setActionState({ canBet, canCashout }) {
@@ -224,7 +254,10 @@
       this.el.cashoutButton.classList.toggle("state-armed", canCashout);
       this.el.cashoutButton.classList.toggle("state-disabled", !canCashout && !hasCashedOut);
       this.el.cashoutButton.classList.toggle("state-cashed", hasCashedOut);
-      this.el.cashoutButton.textContent = hasCashedOut ? "Cashed Out" : "Cash Out";
+      const title = this.el.cashoutButton.querySelector(".cashout-btn__title");
+      const amt = document.getElementById("cashout-amount-line");
+      if (title) title.textContent = hasCashedOut ? "Cashed Out" : "Cash Out";
+      if (amt) amt.textContent = this.el.potentialWin.textContent;
     }
 
     switchTab(tab) {
@@ -253,12 +286,147 @@
       }, 1300);
     }
 
-    showToast(title, body) {
+    formatDuration(ms) {
+      if (!ms || ms <= 0) return "soon";
+      const s = Math.ceil(ms / 1000);
+      const m = Math.floor(s / 60);
+      const h = Math.floor(m / 60);
+      if (h > 0) return `${h}h ${m % 60}m`;
+      if (m > 0) return `${m}m ${s % 60}s`;
+      return `${s}s`;
+    }
+
+    showToast(title, body, extraClass) {
       const toast = document.createElement("div");
-      toast.className = "toast";
+      toast.className = `toast${extraClass ? ` ${extraClass}` : ""}`;
       toast.innerHTML = `<strong>${title}</strong><div>${body}</div>`;
       this.el.toastRoot.prepend(toast);
-      setTimeout(() => toast.remove(), 3400);
+      setTimeout(() => toast.remove(), extraClass === "toast-near-miss" ? 5200 : 3400);
+    }
+
+    setRecoveryHubOpen(open) {
+      if (!this.el.recoveryHub) return;
+      this.el.recoveryHub.classList.toggle("hidden", !open);
+      this.el.recoveryHub.setAttribute("aria-hidden", open ? "false" : "true");
+    }
+
+    bindRecoveryHub(handler) {
+      if (!this.el.recoveryHub) return;
+      this.el.recoveryHub.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-recovery-action]");
+        if (!target) return;
+        handler(target.dataset.recoveryAction, event);
+      });
+    }
+
+    updateDebtIndicator(profile) {
+      const PR = window.PlayerRecovery;
+      if (!this.el.debtIndicator || !PR) return;
+      const debt = PR.getRemainingDebt(profile);
+      const prs = PR.ensureRecovery(profile);
+      const initial = Math.max(Number(prs.loanInitialDebt || 0), debt);
+      if (debt <= 0) {
+        this.el.debtIndicator.classList.add("hidden");
+        return;
+      }
+      this.el.debtIndicator.classList.remove("hidden");
+      this.el.debtAmount.textContent = this.formatMoney(debt);
+      const pct = initial > 0 ? Math.max(0, Math.min(100, (100 * (initial - debt)) / initial)) : 0;
+      if (this.el.debtBarFill) this.el.debtBarFill.style.width = `${pct}%`;
+    }
+
+    updateRoundModeBanner(roundMode) {
+      if (!this.el.roundModeBanner) return;
+      if (roundMode === "free_play") {
+        this.el.roundModeBanner.textContent = "Practice Dive — no rewards, no balance risk";
+        this.el.roundModeBanner.classList.remove("hidden");
+        this.el.roundModeBanner.classList.add("round-mode-banner--teal");
+        this.el.roundModeBanner.classList.remove("round-mode-banner--orange");
+      } else if (roundMode === "second_chance") {
+        this.el.roundModeBanner.textContent = "Last Chance Dive — fixed wager, real payout";
+        this.el.roundModeBanner.classList.remove("hidden");
+        this.el.roundModeBanner.classList.add("round-mode-banner--orange");
+        this.el.roundModeBanner.classList.remove("round-mode-banner--teal");
+      } else {
+        this.el.roundModeBanner.textContent = "";
+        this.el.roundModeBanner.classList.add("hidden");
+        this.el.roundModeBanner.classList.remove("round-mode-banner--teal", "round-mode-banner--orange");
+      }
+    }
+
+    updateRecoveryHub(profile, gameState) {
+      const PR = window.PlayerRecovery;
+      if (!PR || !this.el.recoveryHub) return;
+      const snap = PR.buildRecoverySnapshot(profile, gameState.phase);
+      const emergencyBtn = this.el.recoveryHub.querySelector('[data-recovery-action="claim-emergency"]');
+      const dailyBtn = this.el.recoveryHub.querySelector('[data-recovery-action="claim-daily"]');
+      const secondBtn = this.el.recoveryHub.querySelector('[data-recovery-action="start-second"]');
+      const freeBtn = this.el.recoveryHub.querySelector('[data-recovery-action="start-free"]');
+      const loanBtn = this.el.recoveryHub.querySelector('[data-recovery-action="take-loan"]');
+      const maxSecond = PR.CONFIG.SECOND_CHANCE_MAX_PER_DAY;
+      const usesSecond = profile.playerRecoveryState.secondChanceUsesToday || 0;
+
+      if (this.el.recoveryEmergencyMeta) {
+        this.el.recoveryEmergencyMeta.textContent = snap.emergency.ok
+          ? `Bailout ${this.formatMoney(snap.emergencyAmount)} · ${snap.emergency.remaining} use(s) left today`
+          : (snap.emergency.message || "Unavailable");
+      }
+      if (emergencyBtn) emergencyBtn.disabled = !snap.emergency.ok;
+
+      if (this.el.recoveryDailyMeta) {
+        if (snap.daily.ok) {
+          const reward = PR.getDailyBonusAmountForDay(snap.dailyNextDay);
+          this.el.recoveryDailyMeta.textContent = `Next ration: Day ${snap.dailyNextDay} → ${this.formatMoney(reward)}`;
+        } else {
+          const wait = snap.daily.nextAt ? Math.max(0, snap.daily.nextAt - Date.now()) : 0;
+          this.el.recoveryDailyMeta.textContent = `Next claim in ${this.formatDuration(wait)}`;
+        }
+      }
+      if (this.el.recoveryDailyLadder) {
+        this.el.recoveryDailyLadder.innerHTML = snap.dailyRewards.map((amt, i) => {
+          const day = i + 1;
+          let cls = "daily-dot";
+          if (day === snap.dailyNextDay) cls += " daily-dot--next";
+          else if (day < snap.dailyNextDay) cls += " daily-dot--past";
+          return `<span class="${cls}" title="Day ${day}: ${this.formatMoney(amt)}">${day}</span>`;
+        }).join("");
+      }
+      if (dailyBtn) dailyBtn.disabled = !snap.daily.ok;
+
+      if (this.el.recoverySecondMeta) {
+        if (snap.second.ok) {
+          const left = Math.max(0, maxSecond - usesSecond);
+          this.el.recoverySecondMeta.textContent = `Fixed wager ${this.formatMoney(snap.secondWager)} · ${left} last dive(s) left today (30m sonar gap)`;
+        } else {
+          this.el.recoverySecondMeta.textContent = snap.second.message || "Unavailable";
+        }
+      }
+      if (secondBtn) {
+        secondBtn.disabled = !snap.second.ok || gameState.phase !== "preRound" || gameState.queuedBet > 0;
+      }
+
+      if (this.el.recoveryFreeMeta) {
+        this.el.recoveryFreeMeta.textContent = snap.free.ok
+          ? `${snap.free.rounds} practice round(s) stocked`
+          : (snap.free.message || "Unavailable");
+      }
+      if (freeBtn) {
+        freeBtn.disabled = !snap.free.ok || gameState.phase !== "preRound" || gameState.queuedBet > 0;
+      }
+
+      if (this.el.recoveryLoanMeta) {
+        if (snap.loanActive) {
+          this.el.recoveryLoanMeta.textContent = `Active debt ${this.formatMoney(snap.debt)}`;
+        } else if (snap.loan.ok) {
+          this.el.recoveryLoanMeta.textContent = `Borrow ${this.formatMoney(snap.loanPrincipal)} · repay ${snap.loanMult}x → owe ${this.formatMoney(snap.loanDebtIfNew)}`;
+        } else {
+          const wait = snap.loan.nextAt ? Math.max(0, snap.loan.nextAt - Date.now()) : 0;
+          this.el.recoveryLoanMeta.textContent = snap.loan.reason === "cooldown"
+            ? `Creditors return in ${this.formatDuration(wait)}`
+            : (snap.loan.message || "Unavailable");
+        }
+      }
+      if (loanBtn) loanBtn.disabled = !snap.loan.ok || snap.loanActive || gameState.phase === "active";
     }
 
     renderCollection(skins, unlockedIds, equippedId) {

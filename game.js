@@ -17,9 +17,13 @@
   const animations = new window.GameAnimations("scene-canvas", "depth-tint");
   let profile = dataService.loadPlayerProfile();
   let currentLeaderboardTab = "highestMultiplier";
+  let recoveryHubUserClosed = false;
 
   const gameState = {
     phase: "preRound",
+    pendingRoundMode: "normal",
+    roundMode: "normal",
+    playerEligibleForRewards: true,
     queuedBet: 0,
     activeBet: 0,
     currentMultiplier: 1,
@@ -133,6 +137,7 @@
     profile.streaks.dailyLogin = delta === 1 ? Math.min(7, profile.streaks.dailyLogin + 1) : 1;
     profile.streaks.lastLoginDate = today;
     profile.balance = Number((profile.balance + (profile.streaks.dailyLogin === 7 ? 1200 : 150 * profile.streaks.dailyLogin)).toFixed(2));
+    if (window.PlayerRecovery) window.PlayerRecovery.syncFreePlayWithBalance(profile);
   }
 
   function maybeResetChallenges() {
@@ -174,6 +179,20 @@
   }
 
   function renderAllPanels() {
+    if (window.PlayerRecovery) {
+      window.PlayerRecovery.syncFreePlayWithBalance(profile);
+      window.PlayerRecovery.ensureRecovery(profile);
+    }
+    if (!window.PlayerRecovery || !window.PlayerRecovery.isBroke(profile)) {
+      recoveryHubUserClosed = false;
+      ui.setRecoveryHubOpen(false);
+    } else if (!recoveryHubUserClosed) {
+      ui.setRecoveryHubOpen(true);
+    }
+    ui.updateDebtIndicator(profile);
+    ui.updateRecoveryHub(profile, gameState);
+    ui.updateRoundModeBanner(gameState.phase === "active" ? gameState.roundMode : "normal");
+    ui.setCrewAidVisible(!!(window.PlayerRecovery && window.PlayerRecovery.isBroke(profile)));
     ui.setBalance(profile.balance);
     ui.setStreaks(profile.streaks.win, profile.streaks.dailyLogin);
     ui.renderCollection(content.SUBMARINE_SKINS, profile.unlockedSkinIds, profile.equippedSkinId);
@@ -215,6 +234,7 @@
       if (u.type === "biggestWin") unlocked = profile.stats.biggestPayout >= u.value;
       if (u.type === "highestBalance") unlocked = profile.stats.highestBalance >= u.value;
       if (u.type === "achievements") unlocked = profile.achievementsUnlocked.length >= u.value;
+      if (u.type === "crewRescueBonus") unlocked = false;
       if (unlocked) {
         profile.unlockedSkinIds.push(skin.id);
         ui.showToast("New Submarine Unlocked", `${skin.name} (${skin.rarity})`);
@@ -253,6 +273,8 @@
   function beginPreRound() {
     const roundRng = createRoundRng(gameState.nonce + 1);
     gameState.phase = "preRound";
+    gameState.roundMode = "normal";
+    gameState.playerEligibleForRewards = true;
     gameState.didCrash = false;
     gameState.hasCashedOut = false;
     gameState.currentMultiplier = 1;
@@ -265,6 +287,10 @@
       playerJoinedRound: false,
       playerCashedOut: false
     };
+    if (gameState.queuedBet > 0) {
+      gameState.roundParticipation.playerBetPlaced = true;
+      gameState.roundParticipation.betAmount = gameState.queuedBet;
+    }
     gameState.roundId = `round-${gameState.nonce + 1}`;
     gameState.roundHostUserId = getCurrentUserId();
     refreshHostRole();
@@ -285,10 +311,25 @@
     if (gameState.phase !== "preRound") return;
     gameState.phase = "active";
     gameState.roundStartMs = Date.now();
+    const pending = gameState.pendingRoundMode || "normal";
+    gameState.pendingRoundMode = "normal";
+    gameState.roundMode = pending === "free_play" ? "free_play" : (pending === "second_chance" ? "second_chance" : "normal");
+    gameState.playerEligibleForRewards = gameState.roundMode !== "free_play";
+    if (window.PlayerRecovery) {
+      const prs = window.PlayerRecovery.ensureRecovery(profile);
+      if (gameState.roundMode === "second_chance") {
+        prs.secondChanceUsesToday = (prs.secondChanceUsesToday || 0) + 1;
+        prs.secondChanceLastUsed = Date.now();
+      }
+      if (gameState.roundMode === "free_play") {
+        prs.freePlayRoundsAvailable = Math.max(0, (prs.freePlayRoundsAvailable || 0) - 1);
+      }
+    }
     gameState.activeBet = gameState.queuedBet;
     gameState.roundParticipation.playerJoinedRound = gameState.activeBet > 0;
     gameState.roundParticipation.betAmount = gameState.activeBet;
     gameState.queuedBet = 0;
+    ui.updateRoundModeBanner(gameState.roundMode);
     ui.setPhase(gameState.activeBet > 0 ? "Dive in progress! Cash out before implosion." : "Spectating this dive");
     ui.setLuckyRound(gameState.isLuckyRound);
     updateCashOutButtonState();
@@ -297,12 +338,21 @@
 
   function onWinPayout(payout, multiplier) {
     if (!didPlayerParticipateInRound()) return;
+    if (!gameState.playerEligibleForRewards) return;
     profile.stats.totalWins += 1;
     profile.stats.totalCashouts += 1;
     profile.streaks.win += 1;
     profile.streaks.bestWin = Math.max(profile.streaks.bestWin, profile.streaks.win);
-    if (profile.streaks.win === 3) { profile.balance += 25; profile.stats.streak3Hits += 1; }
-    if (profile.streaks.win === 5) { profile.balance += 80; profile.stats.streak5Hits += 1; }
+    if (profile.streaks.win === 3) {
+      if (window.PlayerRecovery) window.PlayerRecovery.creditBalanceFromGrossWinnings(profile, 25);
+      else profile.balance = Number((profile.balance + 25).toFixed(2));
+      profile.stats.streak3Hits += 1;
+    }
+    if (profile.streaks.win === 5) {
+      if (window.PlayerRecovery) window.PlayerRecovery.creditBalanceFromGrossWinnings(profile, 80);
+      else profile.balance = Number((profile.balance + 80).toFixed(2));
+      profile.stats.streak5Hits += 1;
+    }
     profile.stats.biggestPayout = Math.max(profile.stats.biggestPayout, payout);
     profile.stats.highestMultiplier = Math.max(profile.stats.highestMultiplier, multiplier);
     if (multiplier < 2) profile.stats.cashoutUnder2 += 1;
@@ -319,17 +369,20 @@
 
   function onLoss() {
     if (!didPlayerParticipateInRound()) return;
+    if (!gameState.playerEligibleForRewards) return;
     profile.stats.totalLosses += 1;
     profile.streaks.win = 0;
   }
 
   function closeRoundAfterCrash(scheduleNextRound = true) {
-    dataService.submitLeaderboardScore({ metric: "highestMultiplier", value: profile.stats.highestMultiplier });
-    dataService.submitLeaderboardScore({ metric: "biggestWin", value: profile.stats.biggestPayout });
-    dataService.submitLeaderboardScore({ metric: "highestBalance", value: profile.stats.highestBalance });
-    dataService.submitLeaderboardScore({ metric: "longestStreak", value: profile.streaks.bestWin });
-    dataService.submitLeaderboardScore({ metric: "daily", value: profile.stats.profitSession });
-    dataService.submitLeaderboardScore({ metric: "weekly", value: profile.stats.totalProfit });
+    if (gameState.playerEligibleForRewards) {
+      dataService.submitLeaderboardScore({ metric: "highestMultiplier", value: profile.stats.highestMultiplier });
+      dataService.submitLeaderboardScore({ metric: "biggestWin", value: profile.stats.biggestPayout });
+      dataService.submitLeaderboardScore({ metric: "highestBalance", value: profile.stats.highestBalance });
+      dataService.submitLeaderboardScore({ metric: "longestStreak", value: profile.streaks.bestWin });
+      dataService.submitLeaderboardScore({ metric: "daily", value: profile.stats.profitSession });
+      dataService.submitLeaderboardScore({ metric: "weekly", value: profile.stats.totalProfit });
+    }
     gameState.activeBet = 0;
     gameState.roundParticipation.playerJoinedRound = false;
     gameState.roundParticipation.playerBetPlaced = false;
@@ -358,7 +411,14 @@
       ui.setBetInfo(0, 0);
       gameState.autoLosses += 1;
       onLoss();
-      publishLiveBet("lost");
+      const nm = window.PlayerRecovery && window.PlayerRecovery.shouldShowNearMiss({
+        crashPoint: gameState.crashPoint,
+        hadRealBet: true,
+        lost: true,
+        roundMode: gameState.roundMode
+      });
+      if (nm) ui.showToast(nm.title, nm.body, "toast-near-miss");
+      if (gameState.roundMode !== "free_play") publishLiveBet("lost");
     } else {
       ui.setPhase("Round ended.");
     }
@@ -376,6 +436,7 @@
     if (gameState.queuedBet > 0) return;
     const requested = clamp(Number(ui.getBetInputValue().toFixed(2)), 0.01, profile.balance);
     if (requested > profile.balance || requested <= 0) return;
+    gameState.pendingRoundMode = "normal";
     gameState.queuedBet = requested;
     gameState.roundParticipation.playerBetPlaced = true;
     gameState.roundParticipation.betAmount = requested;
@@ -392,6 +453,96 @@
     saveAll();
   }
 
+  function queueSecondChanceDive() {
+    if (gameState.phase !== "preRound" || gameState.queuedBet > 0) return;
+    const PR = window.PlayerRecovery;
+    if (!PR) return;
+    const chk = PR.canUseSecondChance(profile);
+    if (!chk.ok) {
+      ui.showToast("Last Chance Dive", chk.message || "Unavailable");
+      return;
+    }
+    gameState.pendingRoundMode = "second_chance";
+    gameState.queuedBet = PR.CONFIG.SECOND_CHANCE_WAGER;
+    gameState.roundParticipation.playerBetPlaced = true;
+    gameState.roundParticipation.betAmount = gameState.queuedBet;
+    ui.setBetInfo(gameState.queuedBet, gameState.queuedBet);
+    ui.setPhase(`Last chance locked: ${ui.formatMoney(gameState.queuedBet)}`);
+    publishLiveBet("active");
+    syncLiveBets(true);
+    saveAll();
+    renderAllPanels();
+  }
+
+  function queueFreePlayDive() {
+    if (gameState.phase !== "preRound" || gameState.queuedBet > 0) return;
+    const PR = window.PlayerRecovery;
+    if (!PR) return;
+    const chk = PR.canStartFreePlay(profile);
+    if (!chk.ok) {
+      ui.showToast("Practice Dive", chk.message || "Unavailable");
+      return;
+    }
+    gameState.pendingRoundMode = "free_play";
+    gameState.queuedBet = 100;
+    gameState.roundParticipation.playerBetPlaced = true;
+    gameState.roundParticipation.betAmount = gameState.queuedBet;
+    ui.setBetInfo(gameState.queuedBet, gameState.queuedBet);
+    ui.setPhase("Practice dive locked — no rewards, no balance risk");
+    saveAll();
+    renderAllPanels();
+  }
+
+  function openRecoveryHub() {
+    recoveryHubUserClosed = false;
+    ui.setRecoveryHubOpen(true);
+    renderAllPanels();
+  }
+
+  function onRecoveryAction(action) {
+    const PR = window.PlayerRecovery;
+    if (!PR) return;
+    if (action === "close-hub") {
+      recoveryHubUserClosed = true;
+      ui.setRecoveryHubOpen(false);
+      return;
+    }
+    if (action === "claim-emergency") {
+      const r = PR.claimEmergencyFunding(profile);
+      if (!r.ok) ui.showToast("Emergency Funding", r.message || "Unavailable");
+      else ui.showToast("Emergency Crew Funding", `Your crew secured ${ui.formatMoney(r.amount)}. ${r.remaining} bailout(s) left today.`);
+      saveAll();
+      renderAllPanels();
+      return;
+    }
+    if (action === "claim-daily") {
+      const r = PR.claimDailyBonus(profile, content);
+      if (!r.ok) ui.showToast("Daily Bonus", "Not ready to claim yet.");
+      else {
+        ui.showToast("Daily Crew Ration", `Day ${r.day} ration: ${ui.formatMoney(r.amount)}${r.day === 7 ? " · Rescue Crew Livery unlocked!" : ""}`);
+      }
+      saveAll();
+      renderAllPanels();
+      return;
+    }
+    if (action === "start-second") {
+      queueSecondChanceDive();
+      return;
+    }
+    if (action === "start-free") {
+      queueFreePlayDive();
+      return;
+    }
+    if (action === "take-loan") {
+      const r = PR.takeLoan(profile, gameState.phase);
+      if (!r.ok) ui.showToast("Bridge Credit", r.message || "Unavailable");
+      else ui.showToast("Bridge Credit", `Crew took ${ui.formatMoney(r.principal)}. Debt ${ui.formatMoney(r.debt)} at ${r.mult}x.`);
+      saveAll();
+      renderAllPanels();
+      return;
+    }
+  }
+
   function cashOut(source) {
     if (!didPlayerParticipateInRound()) return;
     if (!updateCashOutButtonState()) return;
@@ -399,19 +550,32 @@
     gameState.roundParticipation.playerCashedOut = true;
     const bonus = gameState.isLuckyRound ? CONFIG.LUCKY_ROUND_PAYOUT_BONUS : 1;
     const winnings = Number((gameState.activeBet * gameState.currentMultiplier * bonus).toFixed(2));
-    profile.balance = Number((profile.balance + winnings).toFixed(2));
-    profile.stats.profitSession += winnings - gameState.activeBet;
-    profile.stats.totalProfit = profile.balance - 1000;
-    profile.stats.highestBalance = Math.max(profile.stats.highestBalance, profile.balance);
-    profile.stats.closeCalls += (gameState.crashPoint - gameState.currentMultiplier <= 0.2 ? 1 : 0);
-    gameState.autoWins += 1;
-    onWinPayout(winnings, gameState.currentMultiplier);
+    if (gameState.roundMode === "free_play") {
+      ui.showToast("Practice Dive", "Training cashout — no balance change.");
+    } else if (window.PlayerRecovery) {
+      window.PlayerRecovery.creditBalanceFromGrossWinnings(profile, winnings);
+      profile.stats.profitSession += winnings - gameState.activeBet;
+      profile.stats.totalProfit = profile.balance - 1000;
+      profile.stats.highestBalance = Math.max(profile.stats.highestBalance, profile.balance);
+      profile.stats.closeCalls += (gameState.crashPoint - gameState.currentMultiplier <= 0.2 ? 1 : 0);
+      gameState.autoWins += 1;
+      onWinPayout(winnings, gameState.currentMultiplier);
+    } else {
+      profile.balance = Number((profile.balance + winnings).toFixed(2));
+      profile.stats.profitSession += winnings - gameState.activeBet;
+      profile.stats.totalProfit = profile.balance - 1000;
+      profile.stats.highestBalance = Math.max(profile.stats.highestBalance, profile.balance);
+      profile.stats.closeCalls += (gameState.crashPoint - gameState.currentMultiplier <= 0.2 ? 1 : 0);
+      gameState.autoWins += 1;
+      onWinPayout(winnings, gameState.currentMultiplier);
+    }
     ui.setBalance(profile.balance);
     ui.setPhase(source === "auto" ? "Auto cash out successful!" : "Cash out successful!");
     ui.setBetInfo(0, winnings);
     animations.spawnCashoutDiver(winnings);
-    publishLiveBet("cashed");
+    if (gameState.roundMode !== "free_play") publishLiveBet("cashed");
     updateCashOutButtonState();
+    saveAll();
   }
 
   function publishRoundState() {
@@ -484,6 +648,7 @@
 
   function publishLiveBet(status) {
     if (typeof dataService.publishLiveBet !== "function") return;
+    if (gameState.pendingRoundMode === "free_play" || gameState.roundMode === "free_play") return;
     const betAmount = gameState.roundParticipation.betAmount || gameState.queuedBet || gameState.activeBet || 0;
     if (betAmount <= 0) return;
     dataService.publishLiveBet({
@@ -518,6 +683,10 @@
   }
 
   function adjustBetInput(delta) { ui.setBetInputValue(clamp(ui.getBetInputValue() + delta, 0.01, Math.max(0.01, profile.balance))); }
+  function setMaxBet() {
+    ui.setBetInputValue(Math.max(0.01, Number(profile.balance) || 0));
+    onBetInputChange();
+  }
   function setBetInput(value) { ui.setBetInputValue(clamp(value, 0.01, Math.max(0.01, profile.balance))); }
   function onBetInputChange() { ui.setBetInputValue(clamp(ui.getBetInputValue(), 0.01, Math.max(0.01, profile.balance))); }
   function onAudioToggle(enabled) { profile.settings.audioEnabled = enabled; saveAll(); }
@@ -541,6 +710,7 @@
 
   function onLeaderboardTabChange(tab) { refreshLeaderboard(tab); }
   function resetSave() {
+    recoveryHubUserClosed = false;
     profile = window.GameDataService.buildDefaultProfile();
     applyLoginStreak();
     maybeResetChallenges();
@@ -556,6 +726,7 @@
     target.claimed = true;
     const reward = target.goal > 100 ? 900 : 300;
     profile.balance = Number((profile.balance + reward).toFixed(2));
+    if (window.PlayerRecovery) window.PlayerRecovery.syncFreePlayWithBalance(profile);
     ui.showToast("Challenge Reward", `+${ui.formatMoney(reward)}`);
     saveAll();
     renderAllPanels();
@@ -568,6 +739,7 @@
 
   function handleRoundMetrics() {
     if (!didPlayerParticipateInRound()) return;
+    if (!gameState.playerEligibleForRewards) return;
     profile.stats.totalRounds += 1;
     profile.stats.roundsPlayedSession += 1;
     updateChallenges("roundsPlayedSession", 1);
@@ -675,10 +847,25 @@
       }
     }
     profile = dataService.loadPlayerProfile();
+    if (window.PlayerRecovery) window.PlayerRecovery.ensureRecovery(profile);
     initFairnessSeed();
     applyLoginStreak();
     maybeResetChallenges();
-    ui.bindControls({ placeBet, cashOut, adjustBetInput, setBetInput, onBetInputChange, onAutoSettingsChanged, resetSave, onAudioToggle, onLeaderboardTabChange, onSignOut });
+    ui.bindControls({
+      placeBet,
+      cashOut,
+      adjustBetInput,
+      setBetInput,
+      setMaxBet,
+      onBetInputChange,
+      onAutoSettingsChanged,
+      resetSave,
+      onAudioToggle,
+      onLeaderboardTabChange,
+      onSignOut,
+      openRecoveryHub
+    });
+    ui.bindRecoveryHub(onRecoveryAction);
     document.addEventListener("click", (event) => {
       const claimBtn = event.target.closest(".claim-btn");
       if (claimBtn) claimChallenge(claimBtn.dataset.claimId);
@@ -695,10 +882,11 @@
       dataService.syncFromBackend().then((remoteProfile) => {
         if (!remoteProfile) return;
         profile = remoteProfile;
+        if (window.PlayerRecovery) window.PlayerRecovery.ensureRecovery(profile);
         renderAllPanels();
       });
     }
-    ui.setBetInputValue(1);
+    ui.setBetInputValue(Math.min(10, Math.max(0.01, profile.balance)));
     ui.setCrashPoint(0);
     await syncSharedRoundState(true);
     if (!gameState.roundId) {

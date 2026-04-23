@@ -46,9 +46,128 @@ html, body {
 .bank {
   background: var(--panel); border: 1px solid var(--panel-border); border-radius: 14px;
   padding: 8px 14px; text-align: right;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  min-width: 140px; position: relative;
 }
 .bank span { display: block; color: var(--muted); font-size: 0.85rem; }
 .bank strong { font-size: 1.35rem; }
+
+.crew-aid-button {
+  align-self: flex-start;
+  font-size: 0.72rem; font-weight: 700; padding: 4px 8px; border-radius: 8px;
+  border: 1px solid rgba(58, 241, 143, 0.45);
+  background: rgba(58, 241, 143, 0.12); color: #b8ffd9; cursor: pointer;
+}
+.crew-aid-button:hover { background: rgba(58, 241, 143, 0.22); }
+.crew-aid-button.hidden { display: none; }
+
+.debt-indicator {
+  width: 100%; margin-top: 2px; padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12); text-align: left;
+}
+.debt-indicator.hidden { display: none; }
+.debt-label { display: block; font-size: 0.68rem; color: #ffb89a; }
+.debt-amount { font-size: 0.88rem; font-weight: 700; color: #ff9a7a; }
+.debt-bar {
+  height: 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.35);
+  margin-top: 4px; overflow: hidden;
+}
+.debt-bar-fill {
+  height: 100%; width: 0%; background: linear-gradient(90deg, #ff8a5c, #ff3d5c);
+  transition: width 220ms ease;
+}
+
+.round-mode-banner {
+  margin-top: 6px; padding: 5px 8px; border-radius: 8px; font-size: 0.72rem; font-weight: 650;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.round-mode-banner.hidden { display: none; }
+.round-mode-banner--teal {
+  background: rgba(46, 226, 200, 0.15); color: #b5fff4; border-color: rgba(46, 226, 200, 0.35);
+}
+.round-mode-banner--orange {
+  background: rgba(255, 154, 72, 0.18); color: #ffe6cc; border-color: rgba(255, 154, 72, 0.45);
+}
+
+.toast-near-miss {
+  border-left-color: #ffb347;
+  box-shadow: 0 0 18px rgba(255, 179, 71, 0.2);
+}
+
+.recovery-hub {
+  position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center;
+  padding: 16px; pointer-events: none;
+}
+.recovery-hub.hidden { display: none; }
+.recovery-hub:not(.hidden) { pointer-events: auto; }
+.recovery-hub-backdrop {
+  position: absolute; inset: 0; background: rgba(2, 8, 22, 0.72);
+  backdrop-filter: blur(4px); animation: recovery-fade-in 200ms ease;
+}
+.recovery-hub-panel {
+  position: relative; z-index: 1; width: min(920px, 100%); max-height: min(88vh, 900px); overflow: auto;
+  background: linear-gradient(165deg, rgba(12, 28, 58, 0.96), rgba(5, 12, 28, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 16px;
+  padding: 18px 18px 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  animation: recovery-pop-in 240ms ease;
+}
+@keyframes recovery-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes recovery-pop-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.recovery-hub-header {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  margin-bottom: 14px;
+}
+.recovery-hub-header h2 { margin: 0; font-size: 1.25rem; }
+.recovery-hub-sub { margin: 6px 0 0; color: var(--muted); font-size: 0.88rem; max-width: 42rem; }
+.recovery-hub-close {
+  border: none; background: rgba(255, 255, 255, 0.08); color: var(--text);
+  width: 36px; height: 36px; border-radius: 10px; font-size: 1.25rem; cursor: pointer; line-height: 1;
+}
+.recovery-hub-close:hover { background: rgba(255, 255, 255, 0.15); }
+.recovery-hub-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;
+}
+.recovery-card {
+  border-radius: 12px; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex; flex-direction: column; gap: 8px; min-height: 200px;
+}
+.recovery-card h3 { margin: 0; font-size: 1rem; }
+.recovery-card-desc { margin: 0; color: var(--muted); font-size: 0.82rem; flex: 1; }
+.recovery-card-meta { font-size: 0.78rem; color: #cfe6ff; min-height: 2.4em; }
+.recovery-card--green { background: rgba(58, 241, 143, 0.08); border-color: rgba(58, 241, 143, 0.25); }
+.recovery-card--gold { background: rgba(246, 205, 80, 0.1); border-color: rgba(246, 205, 80, 0.3); }
+.recovery-card--orange { background: rgba(255, 154, 72, 0.1); border-color: rgba(255, 154, 72, 0.35); }
+.recovery-card--teal { background: rgba(46, 226, 200, 0.08); border-color: rgba(46, 226, 200, 0.28); }
+.recovery-card--red { background: rgba(255, 87, 117, 0.08); border-color: rgba(255, 87, 117, 0.28); }
+.recovery-cta {
+  margin-top: auto; border: none; border-radius: 10px; padding: 10px 12px; font-weight: 700; cursor: pointer; color: #fff;
+  background: linear-gradient(180deg, #3f82ff, #1c4ac0);
+}
+.recovery-cta:disabled { opacity: 0.45; cursor: not-allowed; }
+.recovery-cta--gold { background: linear-gradient(180deg, #e8b84a, #9a6a12); }
+.recovery-cta--warn { background: linear-gradient(180deg, #ff9a48, #c45a10); }
+.recovery-cta--danger { background: linear-gradient(180deg, #ff5775, #ae2140); }
+.daily-bonus-ladder {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0;
+}
+.daily-dot {
+  width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.daily-dot--past { opacity: 0.45; }
+.daily-dot--next {
+  border-color: rgba(246, 205, 80, 0.7); box-shadow: 0 0 10px rgba(246, 205, 80, 0.25);
+  background: rgba(246, 205, 80, 0.15);
+}
+.recovery-hub-footnote {
+  margin: 12px 0 0; font-size: 0.72rem; color: var(--muted); text-align: center;
+}
 
 .tabs {
   position: absolute; top: 74px; left: 14px; right: 14px; z-index: 7;
@@ -496,4 +615,16 @@ html, body {
   .mobile-ui .action-buttons {
     grid-template-columns: 1fr;
   }
+}
+
+.mobile-ui .recovery-hub-panel {
+  max-height: 92vh;
+  padding: 12px;
+}
+.mobile-ui .recovery-hub-grid {
+  grid-template-columns: 1fr;
+}
+.mobile-ui .bank {
+  min-width: 0;
+  max-width: 52vw;
 }

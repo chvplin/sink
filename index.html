@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Submarine Crash Casino - Phase 2</title>
+  <title>Deep Dive Crash</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..600&family=Orbitron:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="deep-dive-theme.css">
 </head>
 <body>
   <div id="game-root">
@@ -13,25 +17,41 @@
     <div class="depth-tint" id="depth-tint"></div>
     <div id="lucky-round-banner" class="lucky-round-banner hidden">Lucky Round! 2x payout bonus active</div>
 
-    <header class="top-bar">
-      <div class="brand">
-        <h1>Submarine Crash</h1>
-        <small id="phase-label">Waiting for next dive...</small>
+    <header class="game-header top-bar">
+      <div class="game-header__brand brand">
+        <h1 class="game-title" aria-label="Deep Dive Crash">Deep Dive <span class="game-title__accent">Crash</span></h1>
+        <p class="game-tagline" id="phase-label">Waiting for next dive...</p>
       </div>
-      <div class="bank">
-        <span>Balance</span>
-        <strong id="balance-display">$1,000.00</strong>
+      <div class="game-header__actions">
+        <div class="hud-icon-row" aria-label="Quick sections">
+          <button type="button" class="hud-icon-btn" data-tab="achievements" title="Honors">★</button>
+          <button type="button" class="hud-icon-btn" data-tab="challenges" title="Missions">◎</button>
+          <button type="button" class="hud-icon-btn" data-tab="stats" title="Log">▣</button>
+          <button type="button" class="hud-icon-btn" data-tab="settings" title="Bay">⚙</button>
+        </div>
+        <div class="bank bank--hud">
+          <button type="button" id="crew-aid-button" class="crew-aid-button hidden" title="Open recovery options">Aid</button>
+          <div class="bank-balance-row">
+            <span class="bank-label">Balance</span>
+            <strong id="balance-display">$1,000.00</strong>
+          </div>
+          <div id="debt-indicator" class="debt-indicator hidden" aria-live="polite">
+            <span class="debt-label">Debt owed</span>
+            <span id="debt-amount" class="debt-amount">$0</span>
+            <div class="debt-bar"><div id="debt-bar-fill" class="debt-bar-fill"></div></div>
+          </div>
+        </div>
       </div>
     </header>
 
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="play">Play</button>
-      <button class="tab-btn" data-tab="collection">Collection</button>
-      <button class="tab-btn" data-tab="challenges">Challenges</button>
-      <button class="tab-btn" data-tab="achievements">Achievements</button>
-      <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
-      <button class="tab-btn" data-tab="stats">Stats</button>
-      <button class="tab-btn" data-tab="settings">Settings</button>
+    <nav class="dock-nav" aria-label="Main sections">
+      <button type="button" class="dock-btn active" data-tab="play"><span class="dock-btn__label">Play</span></button>
+      <button type="button" class="dock-btn" data-tab="collection"><span class="dock-btn__label">Subs</span></button>
+      <button type="button" class="dock-btn" data-tab="challenges"><span class="dock-btn__label">Missions</span></button>
+      <button type="button" class="dock-btn" data-tab="leaderboard"><span class="dock-btn__label">Ranks</span></button>
+      <button type="button" class="dock-btn" data-tab="achievements"><span class="dock-btn__label">Honors</span></button>
+      <button type="button" class="dock-btn" data-tab="stats"><span class="dock-btn__label">Log</span></button>
+      <button type="button" class="dock-btn" data-tab="settings"><span class="dock-btn__label">Bay</span></button>
     </nav>
 
     <main class="hud">
@@ -42,21 +62,24 @@
               <label for="bet-input">Bet Amount</label>
               <div class="bet-controls">
                 <button data-bet-adjust="-1" class="adjust-btn" type="button">-</button>
-                <input id="bet-input" type="number" min="0.01" step="0.01" value="1.00">
+                <input id="bet-input" type="number" min="0.01" step="0.01" value="10.00">
                 <button data-bet-adjust="1" class="adjust-btn" type="button">+</button>
               </div>
               <div class="preset-row">
-                <button class="preset-btn" data-preset="1" type="button">$1</button>
-                <button class="preset-btn" data-preset="5" type="button">$5</button>
                 <button class="preset-btn" data-preset="10" type="button">$10</button>
-                <button class="preset-btn" data-preset="25" type="button">$25</button>
                 <button class="preset-btn" data-preset="50" type="button">$50</button>
+                <button class="preset-btn" data-preset="100" type="button">$100</button>
+                <button class="preset-btn" data-preset="500" type="button">$500</button>
+                <button class="preset-btn preset-btn--max" data-preset="max" type="button">MAX</button>
               </div>
             </div>
 
             <div class="action-buttons">
-              <button id="bet-button" class="action-btn bet-btn" type="button">Place Bet</button>
-              <button id="cashout-button" class="action-btn cashout-btn state-disabled" type="button" disabled>Cash Out</button>
+              <button id="bet-button" class="action-btn bet-btn" type="button"><span class="action-btn__main">Place Bet</span></button>
+              <button id="cashout-button" class="action-btn cashout-btn state-disabled" type="button" disabled>
+                <span class="cashout-btn__title">Cash Out</span>
+                <span id="cashout-amount-line" class="cashout-btn__amount">$0.00</span>
+              </button>
             </div>
 
             <div class="stake-info">
@@ -75,21 +98,35 @@
             </div>
           </section>
 
-          <section class="game-viewport" aria-label="Gameplay viewport safe area">
-            <section class="multiplier-panel viewport-hud">
-              <div class="multiplier-label">Current Multiplier</div>
-              <div id="multiplier-display" class="multiplier-value">1.00x</div>
-              <div class="depth-row">
-                <span>Depth</span>
-                <div class="depth-meter"><div id="depth-meter-fill"></div></div>
-                <span id="depth-display">0 m</span>
+          <section class="game-viewport play-stage" aria-label="Gameplay viewport">
+            <div class="play-stage__frame">
+              <aside class="multiplier-rail" aria-hidden="true">
+                <div class="multiplier-rail__glow"></div>
+                <div class="multiplier-rail__ticks">
+                  <span>10K×</span><span>1K×</span><span>100×</span><span>10×</span><span>1×</span>
+                </div>
+                <div class="multiplier-rail__track">
+                  <div id="multiplier-rail-marker" class="multiplier-rail__marker"></div>
+                </div>
+              </aside>
+              <div class="play-stage__canvas">
+                <section class="multiplier-panel viewport-hud viewport-hud--stage">
+                  <div class="multiplier-label">Multiplier</div>
+                  <div id="round-mode-banner" class="round-mode-banner hidden" role="status"></div>
+                  <div id="multiplier-display" class="multiplier-value">1.00x</div>
+                  <div class="depth-caption">Depth</div>
+                  <div class="depth-row">
+                    <div class="depth-meter"><div id="depth-meter-fill"></div></div>
+                    <span id="depth-display" class="depth-readout">0 m</span>
+                  </div>
+                  <div class="round-meta">
+                    <span id="countdown-display">Next round in --</span>
+                    <span id="crash-display">Last crash: --</span>
+                  </div>
+                  <div id="milestone-feed" class="milestone-feed"></div>
+                </section>
               </div>
-              <div class="round-meta">
-                <span id="countdown-display">Next round in --</span>
-                <span id="crash-display">Last crash: --</span>
-              </div>
-              <div id="milestone-feed" class="milestone-feed"></div>
-            </section>
+            </div>
           </section>
 
           <aside class="play-side-panel history-panel">
@@ -157,12 +194,60 @@
     </footer>
 
     <div id="toast-root" class="toast-root"></div>
+
+    <div id="recovery-hub" class="recovery-hub hidden" aria-hidden="true">
+      <div class="recovery-hub-backdrop" data-recovery-action="close-hub" aria-label="Close"></div>
+      <div class="recovery-hub-panel" role="dialog" aria-labelledby="recovery-hub-title">
+        <header class="recovery-hub-header">
+          <div>
+            <h2 id="recovery-hub-title">Dry Dock — Out of Funds</h2>
+            <p class="recovery-hub-sub">Your crew still has options before the fleet stands down.</p>
+          </div>
+          <button type="button" class="recovery-hub-close" data-recovery-action="close-hub" aria-label="Close recovery panel">×</button>
+        </header>
+        <div class="recovery-hub-grid">
+          <section class="recovery-card recovery-card--green" data-recovery-section="emergency">
+            <h3>Emergency Crew Funding</h3>
+            <p class="recovery-card-desc">Backup supplies secured for another dive.</p>
+            <div class="recovery-card-meta" id="recovery-emergency-meta"></div>
+            <button type="button" class="recovery-cta" data-recovery-action="claim-emergency">Claim bailout</button>
+          </section>
+          <section class="recovery-card recovery-card--gold" data-recovery-section="daily">
+            <h3>Daily Crew Ration</h3>
+            <p class="recovery-card-desc">Return every 24h for escalating shore leave pay.</p>
+            <div class="recovery-card-meta" id="recovery-daily-meta"></div>
+            <div class="daily-bonus-ladder" id="recovery-daily-ladder"></div>
+            <button type="button" class="recovery-cta recovery-cta--gold" data-recovery-action="claim-daily">Claim daily bonus</button>
+          </section>
+          <section class="recovery-card recovery-card--orange" data-recovery-section="second">
+            <h3>Last Chance Dive</h3>
+            <p class="recovery-card-desc">One desperate expedition — fixed wager, real payout if you surface in time.</p>
+            <div class="recovery-card-meta" id="recovery-second-meta"></div>
+            <button type="button" class="recovery-cta recovery-cta--warn" data-recovery-action="start-second">Start last chance</button>
+          </section>
+          <section class="recovery-card recovery-card--teal" data-recovery-section="free">
+            <h3>Practice Dive</h3>
+            <p class="recovery-card-desc">No balance risk, no rewards — keep your instincts sharp.</p>
+            <div class="recovery-card-meta" id="recovery-free-meta"></div>
+            <button type="button" class="recovery-cta" data-recovery-action="start-free">Begin practice dive</button>
+          </section>
+          <section class="recovery-card recovery-card--red" data-recovery-section="loan">
+            <h3>Bridge Credit</h3>
+            <p class="recovery-card-desc">Take on debt — winnings pay creditors first.</p>
+            <div class="recovery-card-meta" id="recovery-loan-meta"></div>
+            <button type="button" class="recovery-cta recovery-cta--danger" data-recovery-action="take-loan">Accept loan</button>
+          </section>
+        </div>
+        <p class="recovery-hub-footnote">All amounts are pretend money for this prototype.</p>
+      </div>
+    </div>
   </div>
 
   <script src="progression.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="services.js"></script>
+  <script src="recovery.js"></script>
   <script src="animations.js"></script>
   <script src="ui.js"></script>
   <script src="game.js"></script>

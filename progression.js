@@ -1,6 +1,7 @@
 (function () {
   const SUBMARINE_SKINS = [
     { id: "classic", name: "Classic Yellow", rarity: "Common", colors: { body: "#f7d23b", accent: "#d2a814", trim: "#463203" }, unlock: { type: "default" } },
+    { id: "crew_rescue", name: "Rescue Crew Livery", rarity: "Rare", colors: { body: "#4ad6c8", accent: "#1e8a7e", trim: "#0a2f2a" }, unlock: { type: "crewRescueBonus", value: 1 } },
     { id: "explorer", name: "Explorer", rarity: "Common", colors: { body: "#ff9f43", accent: "#c56a17", trim: "#4f2d00" }, unlock: { type: "roundsPlayed", value: 20 } },
     { id: "salvage", name: "Salvage", rarity: "Common", colors: { body: "#7ac4b8", accent: "#3f837a", trim: "#103f39" }, unlock: { type: "placeBets", value: 30 } },
     { id: "military", name: "Military", rarity: "Rare", colors: { body: "#7b8c66", accent: "#4d5d3d", trim: "#1f2816" }, unlock: { type: "winRounds", value: 15 } },

@@ -1,6 +1,6 @@
 (function () {
   const SAVE_KEY = "submarine_crash_save_v2";
-  const SAVE_VERSION = 2;
+  const SAVE_VERSION = 3;
   const PLAYER_ID_KEY = "submarine_player_id";
   const LEADERBOARD_LOCAL_KEY = "submarine_crash_leaderboard_submissions";
 
@@ -66,6 +66,7 @@
         totalLosses: 0,
         highestMultiplier: 1,
         biggestPayout: 0,
+        biggestSingleBet: 0,
         highestBalance: 1000,
         totalProfit: 0,
         totalBet: 0,
@@ -84,6 +85,23 @@
         betsPlacedSession: 0,
         cashoutCountSession: 0,
         profitSession: 0
+      },
+      playerRecoveryState: {
+        emergencyFundingUsesToday: 0,
+        emergencyFundingLastReset: "",
+        dailyBonusLastClaim: 0,
+        dailyBonusNextRewardDay: 1,
+        secondChanceLastUsed: 0,
+        secondChanceUsesToday: 0,
+        secondChanceLastReset: "",
+        freePlayRoundsAvailable: 0,
+        freePlayRefillOnNextZero: true,
+        loanActive: false,
+        loanPrincipal: 0,
+        loanRepaymentMultiplier: 1.75,
+        totalDebtRemaining: 0,
+        loanNextEligibleAt: 0,
+        loanInitialDebt: 0
       },
       settings: {
         audioEnabled: true,
@@ -106,9 +124,13 @@
       challenges: { ...defaults.challenges, ...(raw.challenges || {}) },
       streaks: { ...defaults.streaks, ...(raw.streaks || {}) },
       stats: { ...defaults.stats, ...(raw.stats || {}) },
-      settings: { ...defaults.settings, ...(raw.settings || {}) }
+      settings: { ...defaults.settings, ...(raw.settings || {}) },
+      playerRecoveryState: { ...defaults.playerRecoveryState, ...(raw.playerRecoveryState || {}) }
     };
     merged.saveVersion = SAVE_VERSION;
+    if (typeof window.PlayerRecovery !== "undefined" && window.PlayerRecovery.ensureRecovery) {
+      window.PlayerRecovery.ensureRecovery(merged);
+    }
     return merged;
   }
 
