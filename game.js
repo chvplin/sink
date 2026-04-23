@@ -4,7 +4,8 @@
     LUCKY_ROUND_CHANCE: 0.05,
     LUCKY_ROUND_PAYOUT_BONUS: 2,
     MILESTONES: [2, 5, 10, 25, 50, 100],
-    SHARED_SYNC_MS: 300
+    SHARED_SYNC_MS: 300,
+    MULTIPLIER_RATE_PER_SEC: 0.35
   };
   const PHASE_RANK = { preRound: 1, active: 2, crashed: 3 };
   const content = window.ProgressionContent;
@@ -87,7 +88,9 @@
     else point = 1000 + Math.random() * 9000;
     return clamp(Number(point.toFixed(2)), 1, 10000);
   }
-  function multiplierFromElapsedMs(ms) { return Math.exp((ms / 1000) * 0.34); }
+  function multiplierFromElapsedMs(ms) {
+    return clamp(1 + ((ms / 1000) * CONFIG.MULTIPLIER_RATE_PER_SEC), 1, 10000);
+  }
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
 
   function getEquippedSkin() {

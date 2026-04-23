@@ -51,6 +51,21 @@
         signOutButton: document.getElementById("signout-button")
       };
       this.currentLeaderboardTab = "highestMultiplier";
+      this.setupResponsiveMode();
+    }
+
+    setupResponsiveMode() {
+      const mq = window.matchMedia("(max-width: 820px)");
+      const apply = () => {
+        document.body.classList.toggle("mobile-ui", mq.matches);
+      };
+      apply();
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", apply);
+      } else if (typeof mq.addListener === "function") {
+        mq.addListener(apply);
+      }
+      window.addEventListener("orientationchange", apply);
     }
 
     bindControls(controller) {
