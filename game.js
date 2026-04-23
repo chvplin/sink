@@ -248,6 +248,8 @@
     gameState.hasCashedOut = false;
     gameState.currentMultiplier = 1;
     gameState.activeBet = 0;
+    gameState.roundStartMs = 0;
+    gameState.roundEndMs = 0;
     gameState.roundParticipation = {
       playerBetPlaced: false,
       betAmount: 0,
@@ -565,7 +567,7 @@
       const elapsed = now - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
       ui.setCountdown(remaining);
-      if (elapsed >= gameState.countdownDurationMs && gameState.roundStartMs === 0) {
+      if (elapsed >= gameState.countdownDurationMs) {
         beginRound();
       }
     } else if (gameState.phase === "active") {
