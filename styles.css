@@ -192,7 +192,8 @@ html, body {
   pointer-events: none;
 }
 #panel-play .play-controls-panel,
-#panel-play .play-side-panel {
+#panel-play .play-side-panel,
+#panel-play .play-ui-column {
   pointer-events: auto;
 }
 .play-layout {
