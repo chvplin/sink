@@ -199,6 +199,19 @@
           this.ctx.fill();
         }
       }
+
+      // Visible animated waterline waves near the submarine start area.
+      const t = performance.now() / 1000;
+      const waveY = this.height * 0.2;
+      this.ctx.lineWidth = 3;
+      this.ctx.strokeStyle = "rgba(220, 245, 255, 0.55)";
+      this.ctx.beginPath();
+      for (let x = 0; x <= this.width; x += 12) {
+        const y = waveY + Math.sin(x * 0.018 + t * 2.1) * 6;
+        if (x === 0) this.ctx.moveTo(x, y);
+        else this.ctx.lineTo(x, y);
+      }
+      this.ctx.stroke();
     }
 
     drawAmbientParticles() {

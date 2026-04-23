@@ -6,6 +6,7 @@
     MILESTONES: [2, 5, 10, 25, 50, 100],
     SHARED_SYNC_MS: 900
   };
+  const PHASE_RANK = { preRound: 1, active: 2, crashed: 3 };
   const content = window.ProgressionContent;
   const dataService = window.GameDataService.create();
   const ui = new window.GameUI();
@@ -111,7 +112,7 @@
   function updateCashOutButtonState() {
     const canCash = gameState.phase === "active" && gameState.activeBet > 0 && !gameState.hasCashedOut && !gameState.didCrash && gameState.currentMultiplier < gameState.crashPoint;
     ui.updateCashOutButtonState({ canCashout: canCash, hasCashedOut: gameState.hasCashedOut });
-    ui.setActionState({ canBet: gameState.phase === "preRound", canCashout: canCash });
+    ui.setActionState({ canBet: gameState.phase === "preRound" && gameState.queuedBet === 0, canCashout: canCash });
     return canCash;
   }
 
@@ -253,7 +254,7 @@
       playerJoinedRound: false,
       playerCashedOut: false
     };
-    gameState.roundId = `${gameState.nonce + 1}-${Date.now()}`;
+    gameState.roundId = `round-${gameState.nonce + 1}`;
     gameState.crashPoint = generateSharedCrashPoint(gameState.nonce + 1);
     gameState.isLuckyRound = roundRng() < CONFIG.LUCKY_ROUND_CHANCE;
     gameState.countdownStartMs = Date.now();
@@ -268,6 +269,7 @@
   }
 
   function beginRound() {
+    if (gameState.phase !== "preRound") return;
     gameState.phase = "active";
     gameState.roundStartMs = Date.now();
     gameState.activeBet = gameState.queuedBet;
@@ -410,6 +412,16 @@
     if (!state || !state.phase || !state.roundId) return;
     const publishedAt = Number(state.publishedAt || 0);
     if (publishedAt && publishedAt <= gameState.lastSharedStateAt) return;
+
+    const localRoundNum = Number(String(gameState.roundId || "").split("-")[1] || 0);
+    const incomingRoundNum = Number(String(state.roundId || "").split("-")[1] || 0);
+    if (incomingRoundNum < localRoundNum) return;
+    if (incomingRoundNum === localRoundNum) {
+      const localRank = PHASE_RANK[gameState.phase] || 0;
+      const incomingRank = PHASE_RANK[state.phase] || 0;
+      if (incomingRank < localRank) return;
+    }
+
     gameState.lastSharedStateAt = publishedAt || Date.now();
     gameState.roundId = state.roundId;
     gameState.phase = state.phase;
