@@ -36,23 +36,8 @@
 
     <main class="hud">
       <section id="panel-play" class="tab-panel active">
-        <div class="play-grid">
-          <section class="multiplier-panel">
-            <div class="multiplier-label">Current Multiplier</div>
-            <div id="multiplier-display" class="multiplier-value">1.00x</div>
-            <div class="depth-row">
-              <span>Depth</span>
-              <div class="depth-meter"><div id="depth-meter-fill"></div></div>
-              <span id="depth-display">0 m</span>
-            </div>
-            <div class="round-meta">
-              <span id="countdown-display">Next round in --</span>
-              <span id="crash-display">Last crash: --</span>
-            </div>
-            <div id="milestone-feed" class="milestone-feed"></div>
-          </section>
-
-          <section class="controls-panel">
+        <div class="play-layout">
+          <section class="play-controls-panel controls-panel">
             <div class="bet-input-group">
               <label for="bet-input">Bet Amount</label>
               <div class="bet-controls">
@@ -90,7 +75,24 @@
             </div>
           </section>
 
-          <aside class="history-panel">
+          <section class="game-viewport" aria-label="Gameplay viewport safe area">
+            <section class="multiplier-panel viewport-hud">
+              <div class="multiplier-label">Current Multiplier</div>
+              <div id="multiplier-display" class="multiplier-value">1.00x</div>
+              <div class="depth-row">
+                <span>Depth</span>
+                <div class="depth-meter"><div id="depth-meter-fill"></div></div>
+                <span id="depth-display">0 m</span>
+              </div>
+              <div class="round-meta">
+                <span id="countdown-display">Next round in --</span>
+                <span id="crash-display">Last crash: --</span>
+              </div>
+              <div id="milestone-feed" class="milestone-feed"></div>
+            </section>
+          </section>
+
+          <aside class="play-side-panel history-panel">
             <h2>Crash History</h2>
             <ul id="history-list"></ul>
             <div class="streak-card">
@@ -98,7 +100,7 @@
               <div>Daily Login <strong id="daily-streak-display">1</strong></div>
             </div>
           </aside>
-        </div>
+        </div>        
       </section>
 
       <section id="panel-collection" class="tab-panel">

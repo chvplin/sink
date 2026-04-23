@@ -28,6 +28,12 @@
     isLuckyRound: false,
     autoWins: 0,
     autoLosses: 0,
+    roundParticipation: {
+      playerBetPlaced: false,
+      betAmount: 0,
+      playerJoinedRound: false,
+      playerCashedOut: false
+    },
     serverSeed: "",
     serverSeedHash: "",
     clientSeed: "submarine-player-seed-v2"
@@ -77,6 +83,10 @@
 
   function getEquippedSkin() {
     return content.SUBMARINE_SKINS.find((s) => s.id === profile.equippedSkinId) || content.SUBMARINE_SKINS[0];
+  }
+  function didPlayerParticipateInRound() {
+    const p = gameState.roundParticipation;
+    return p.playerBetPlaced && p.playerJoinedRound && p.betAmount > 0;
   }
   function updateCashOutButtonState() {
     const canCash = gameState.phase === "active" && gameState.activeBet > 0 && !gameState.hasCashedOut && !gameState.didCrash && gameState.currentMultiplier < gameState.crashPoint;
@@ -207,6 +217,12 @@
     gameState.hasCashedOut = false;
     gameState.currentMultiplier = 1;
     gameState.activeBet = 0;
+    gameState.roundParticipation = {
+      playerBetPlaced: false,
+      betAmount: 0,
+      playerJoinedRound: false,
+      playerCashedOut: false
+    };
     gameState.crashPoint = generateCrashPoint(gameState.nonce + 1);
     gameState.isLuckyRound = roundRng() < CONFIG.LUCKY_ROUND_CHANCE;
     gameState.countdownStartMs = performance.now();
@@ -223,12 +239,15 @@
     gameState.phase = "active";
     gameState.roundStartMs = performance.now();
     gameState.activeBet = gameState.queuedBet;
+    gameState.roundParticipation.playerJoinedRound = gameState.activeBet > 0;
+    gameState.roundParticipation.betAmount = gameState.activeBet;
     gameState.queuedBet = 0;
     ui.setPhase(gameState.activeBet > 0 ? "Dive in progress! Cash out before implosion." : "Spectating this dive");
     updateCashOutButtonState();
   }
 
   function onWinPayout(payout, multiplier) {
+    if (!didPlayerParticipateInRound()) return;
     profile.stats.totalWins += 1;
     profile.stats.totalCashouts += 1;
     profile.streaks.win += 1;
@@ -250,12 +269,17 @@
   }
 
   function onLoss() {
+    if (!didPlayerParticipateInRound()) return;
     profile.stats.totalLosses += 1;
     profile.streaks.win = 0;
   }
 
   function closeRoundAfterCrash() {
     gameState.activeBet = 0;
+    gameState.roundParticipation.playerJoinedRound = false;
+    gameState.roundParticipation.playerBetPlaced = false;
+    gameState.roundParticipation.betAmount = 0;
+    gameState.roundParticipation.playerCashedOut = false;
     gameState.nonce += 1;
     saveAll();
     renderAllPanels();
@@ -289,6 +313,8 @@
     const requested = clamp(Number(ui.getBetInputValue().toFixed(2)), 0.01, profile.balance);
     if (requested > profile.balance || requested <= 0) return;
     gameState.queuedBet = requested;
+    gameState.roundParticipation.playerBetPlaced = true;
+    gameState.roundParticipation.betAmount = requested;
     profile.balance = Number((profile.balance - requested).toFixed(2));
     profile.stats.totalBet += requested;
     profile.stats.biggestSingleBet = Math.max(profile.stats.biggestSingleBet || 0, requested);
@@ -301,8 +327,10 @@
   }
 
   function cashOut(source) {
+    if (!didPlayerParticipateInRound()) return;
     if (!updateCashOutButtonState()) return;
     gameState.hasCashedOut = true;
+    gameState.roundParticipation.playerCashedOut = true;
     const bonus = gameState.isLuckyRound ? CONFIG.LUCKY_ROUND_PAYOUT_BONUS : 1;
     const winnings = Number((gameState.activeBet * gameState.currentMultiplier * bonus).toFixed(2));
     profile.balance = Number((profile.balance + winnings).toFixed(2));
@@ -363,6 +391,7 @@
   }
 
   function handleRoundMetrics() {
+    if (!didPlayerParticipateInRound()) return;
     profile.stats.totalRounds += 1;
     profile.stats.roundsPlayedSession += 1;
     updateChallenges("roundsPlayedSession", 1);
@@ -404,9 +433,11 @@
     } else if (gameState.phase === "active") {
       const elapsed = now - gameState.roundStartMs;
       gameState.currentMultiplier = Number(multiplierFromElapsedMs(elapsed).toFixed(2));
-      CONFIG.MILESTONES.forEach((m) => {
-        if (Math.abs(gameState.currentMultiplier - m) < 0.015) ui.showMilestone(`Milestone ${m.toFixed(0)}x reached!`);
-      });
+      if (didPlayerParticipateInRound()) {
+        CONFIG.MILESTONES.forEach((m) => {
+          if (Math.abs(gameState.currentMultiplier - m) < 0.015) ui.showMilestone(`Milestone ${m.toFixed(0)}x reached!`);
+        });
+      }
       if (gameState.currentMultiplier >= gameState.crashPoint) {
         handleRoundMetrics();
         crashRound();
