@@ -159,6 +159,22 @@ html, body {
 
 #history-list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 7px; max-height: 220px; overflow: auto; }
 #history-list li { border-radius: 999px; padding: 5px 10px; font-weight: 650; font-size: 0.9rem; }
+.live-bets-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  max-height: 140px;
+  overflow: auto;
+}
+.live-bets-list li {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
 .history-green { background: rgba(100,221,136,0.3); }
 .history-blue { background: rgba(95,170,255,0.35); }
 .history-purple { background: rgba(183,114,255,0.34); }

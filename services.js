@@ -166,6 +166,11 @@
       this.storageKey = SAVE_KEY;
     }
 
+    getCurrentDisplayName() {
+      if (!this.user) return this.playerId || "Player";
+      return this.user.user_metadata?.display_name || this.user.email || this.playerId || "Player";
+    }
+
     loadPlayerProfile() {
       return loadLocalProfile(this.storageKey);
     }
@@ -233,6 +238,109 @@
         }));
       } catch (error) {
         console.warn("Leaderboard query error.", error);
+        return [];
+      }
+    }
+
+    async publishLiveRound(state) {
+      if (!this.supabase || !this.user) return false;
+      try {
+        const payload = {
+          ...state,
+          publisherUserId: this.user.id
+        };
+        const { error } = await this.supabase.from("leaderboard_scores").insert({
+          user_id: this.user.id,
+          player_id: this.playerId,
+          metric: "live_round_state",
+          value: Number(payload.nonce || 0),
+          payload
+        });
+        if (error) {
+          console.warn("Failed to publish live round state.", error);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.warn("Live round publish error.", error);
+        return false;
+      }
+    }
+
+    async fetchLatestLiveRound() {
+      if (!this.supabase) return null;
+      try {
+        const { data, error } = await this.supabase
+          .from("leaderboard_scores")
+          .select("payload, created_at")
+          .eq("metric", "live_round_state")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error || !data || !data.payload) return null;
+        return {
+          ...data.payload,
+          createdAt: data.created_at
+        };
+      } catch (error) {
+        console.warn("Live round fetch error.", error);
+        return null;
+      }
+    }
+
+    async publishLiveBet(betPayload) {
+      if (!this.supabase || !this.user) return false;
+      try {
+        const payload = {
+          ...betPayload,
+          userId: this.user.id,
+          playerId: this.playerId
+        };
+        const { error } = await this.supabase.from("leaderboard_scores").insert({
+          user_id: this.user.id,
+          player_id: this.playerId,
+          metric: "live_bet",
+          value: Number(payload.amount || 0),
+          payload
+        });
+        if (error) {
+          console.warn("Failed to publish live bet.", error);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.warn("Live bet publish error.", error);
+        return false;
+      }
+    }
+
+    async fetchLiveBets(roundId) {
+      if (!this.supabase || !roundId) return [];
+      try {
+        const { data, error } = await this.supabase
+          .from("leaderboard_scores")
+          .select("payload, created_at")
+          .eq("metric", "live_bet")
+          .order("created_at", { ascending: false })
+          .limit(300);
+        if (error || !Array.isArray(data)) return [];
+
+        const latestByUser = new Map();
+        for (const row of data) {
+          const payload = row.payload || {};
+          if (payload.roundId !== roundId) continue;
+          const userKey = payload.userId || payload.playerId;
+          if (!userKey || latestByUser.has(userKey)) continue;
+          latestByUser.set(userKey, payload);
+        }
+        return Array.from(latestByUser.values())
+          .filter((p) => p.status === "active")
+          .map((p) => ({
+            name: p.displayName || p.playerId || "Player",
+            amount: Number(p.amount || 0)
+          }));
+      } catch (error) {
+        console.warn("Live bets fetch error.", error);
         return [];
       }
     }

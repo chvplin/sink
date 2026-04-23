@@ -54,6 +54,7 @@
     tabSignIn.addEventListener("click", () => switchTab("signin"));
     tabSignUp.addEventListener("click", () => switchTab("signup"));
     const wireToggle = (btn, input) => {
+      if (!btn || !input) return;
       btn.addEventListener("click", () => {
         const nextType = input.type === "password" ? "text" : "password";
         input.type = nextType;

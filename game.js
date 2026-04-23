@@ -3,7 +3,8 @@
     DEV_TOOLS_ENABLED: true,
     LUCKY_ROUND_CHANCE: 0.05,
     LUCKY_ROUND_PAYOUT_BONUS: 2,
-    MILESTONES: [2, 5, 10, 25, 50, 100]
+    MILESTONES: [2, 5, 10, 25, 50, 100],
+    SHARED_SYNC_MS: 900
   };
   const content = window.ProgressionContent;
   const dataService = window.GameDataService.create();
@@ -22,6 +23,7 @@
     countdownDurationMs: 0,
     roundStartMs: 0,
     roundEndMs: 0,
+    roundId: "",
     didCrash: false,
     hasCashedOut: false,
     lastCrash: 0,
@@ -37,7 +39,10 @@
     },
     serverSeed: "",
     serverSeedHash: "",
-    clientSeed: "submarine-player-seed-v2"
+    clientSeed: "submarine-player-seed-v2",
+    lastSharedStateAt: 0,
+    lastSharedSyncAt: 0,
+    lastLiveBetsSyncAt: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
@@ -68,6 +73,20 @@
 
   function generateCrashPoint(nonce) {
     const r = createRoundRng(nonce);
+    const random = r();
+    let point;
+    if (random < 0.33) point = 1 + r() * 0.99;
+    else if (random < 0.6) point = 2 + r() * 2.99;
+    else if (random < 0.8) point = 5 + r() * 4.99;
+    else if (random < 0.92) point = 10 + r() * 39.99;
+    else if (random < 0.97) point = 50 + r() * 49.99;
+    else if (random < 0.995) point = 100 + r() * 899.99;
+    else point = 1000 + r() * 9000;
+    return clamp(Number(point.toFixed(2)), 1, 10000);
+  }
+  function generateSharedCrashPoint(nonce) {
+    const [a, b, c, d] = cyrb128(`shared-round-${nonce}`);
+    const r = sfc32(a, b, c, d);
     const random = r();
     let point;
     if (random < 0.33) point = 1 + r() * 0.99;
@@ -234,27 +253,30 @@
       playerJoinedRound: false,
       playerCashedOut: false
     };
-    gameState.crashPoint = generateCrashPoint(gameState.nonce + 1);
+    gameState.roundId = `${gameState.nonce + 1}-${Date.now()}`;
+    gameState.crashPoint = generateSharedCrashPoint(gameState.nonce + 1);
     gameState.isLuckyRound = roundRng() < CONFIG.LUCKY_ROUND_CHANCE;
-    gameState.countdownStartMs = performance.now();
+    gameState.countdownStartMs = Date.now();
     gameState.countdownDurationMs = 10000;
     ui.setPhase("Prepare your submarine...");
     ui.setLuckyRound(gameState.isLuckyRound);
     ui.setFairness(gameState.serverSeedHash.slice(0, 24), gameState.nonce);
     ui.setBetInfo(gameState.queuedBet, 0);
     updateCashOutButtonState();
+    publishRoundState();
     if (profile.settings.autoBetEnabled && gameState.queuedBet === 0) setTimeout(() => placeBet(), 120);
   }
 
   function beginRound() {
     gameState.phase = "active";
-    gameState.roundStartMs = performance.now();
+    gameState.roundStartMs = Date.now();
     gameState.activeBet = gameState.queuedBet;
     gameState.roundParticipation.playerJoinedRound = gameState.activeBet > 0;
     gameState.roundParticipation.betAmount = gameState.activeBet;
     gameState.queuedBet = 0;
     ui.setPhase(gameState.activeBet > 0 ? "Dive in progress! Cash out before implosion." : "Spectating this dive");
     updateCashOutButtonState();
+    publishRoundState();
   }
 
   function onWinPayout(payout, multiplier) {
@@ -306,7 +328,7 @@
   function crashRound() {
     gameState.phase = "crashed";
     gameState.didCrash = true;
-    gameState.roundEndMs = performance.now();
+    gameState.roundEndMs = Date.now();
     gameState.currentMultiplier = gameState.crashPoint;
     gameState.lastCrash = gameState.crashPoint;
     ui.setCrashPoint(gameState.crashPoint);
@@ -316,11 +338,13 @@
       ui.setBetInfo(0, 0);
       gameState.autoLosses += 1;
       onLoss();
+      publishLiveBet("lost");
     } else {
       ui.setPhase("Round ended.");
     }
     animations.triggerCrashExplosion();
     updateCashOutButtonState();
+    publishRoundState();
     closeRoundAfterCrash();
   }
 
@@ -340,6 +364,7 @@
     ui.setBalance(profile.balance);
     ui.setBetInfo(gameState.queuedBet, gameState.queuedBet);
     ui.setPhase(`Bet locked: ${ui.formatMoney(gameState.queuedBet)}`);
+    publishLiveBet("active");
     saveAll();
   }
 
@@ -361,7 +386,81 @@
     ui.setPhase(source === "auto" ? "Auto cash out successful!" : "Cash out successful!");
     ui.setBetInfo(0, winnings);
     animations.spawnCashoutDiver(winnings);
+    publishLiveBet("cashed");
     updateCashOutButtonState();
+  }
+
+  function publishRoundState() {
+    if (typeof dataService.publishLiveRound !== "function") return;
+    dataService.publishLiveRound({
+      roundId: gameState.roundId,
+      phase: gameState.phase,
+      nonce: gameState.nonce,
+      crashPoint: gameState.crashPoint,
+      isLuckyRound: gameState.isLuckyRound,
+      countdownStartMs: gameState.countdownStartMs,
+      countdownDurationMs: gameState.countdownDurationMs,
+      roundStartMs: gameState.roundStartMs,
+      roundEndMs: gameState.roundEndMs,
+      publishedAt: Date.now()
+    });
+  }
+
+  function applyLiveRoundState(state) {
+    if (!state || !state.phase || !state.roundId) return;
+    const publishedAt = Number(state.publishedAt || 0);
+    if (publishedAt && publishedAt <= gameState.lastSharedStateAt) return;
+    gameState.lastSharedStateAt = publishedAt || Date.now();
+    gameState.roundId = state.roundId;
+    gameState.phase = state.phase;
+    gameState.nonce = Number(state.nonce || gameState.nonce);
+    gameState.crashPoint = Number(state.crashPoint || gameState.crashPoint);
+    gameState.isLuckyRound = !!state.isLuckyRound;
+    gameState.countdownStartMs = Number(state.countdownStartMs || gameState.countdownStartMs || Date.now());
+    gameState.countdownDurationMs = Number(state.countdownDurationMs || 10000);
+    gameState.roundStartMs = Number(state.roundStartMs || 0);
+    gameState.roundEndMs = Number(state.roundEndMs || 0);
+    gameState.didCrash = gameState.phase === "crashed";
+    if (gameState.phase === "preRound") {
+      gameState.activeBet = 0;
+      gameState.hasCashedOut = false;
+    }
+    ui.setLuckyRound(gameState.isLuckyRound);
+  }
+
+  async function syncSharedRoundState(force = false) {
+    if (typeof dataService.fetchLatestLiveRound !== "function") return;
+    const now = Date.now();
+    if (!force && now - gameState.lastSharedSyncAt < CONFIG.SHARED_SYNC_MS) return;
+    gameState.lastSharedSyncAt = now;
+    const latest = await dataService.fetchLatestLiveRound();
+    if (!latest) {
+      if (!gameState.roundId) beginPreRound();
+      return;
+    }
+    applyLiveRoundState(latest);
+  }
+
+  function publishLiveBet(status) {
+    if (typeof dataService.publishLiveBet !== "function") return;
+    if (!didPlayerParticipateInRound()) return;
+    dataService.publishLiveBet({
+      roundId: gameState.roundId,
+      status,
+      amount: gameState.roundParticipation.betAmount,
+      displayName: typeof dataService.getCurrentDisplayName === "function"
+        ? dataService.getCurrentDisplayName()
+        : "Player"
+    });
+  }
+
+  async function syncLiveBets(force = false) {
+    if (typeof dataService.fetchLiveBets !== "function" || !gameState.roundId) return;
+    const now = Date.now();
+    if (!force && now - gameState.lastLiveBetsSyncAt < 1200) return;
+    gameState.lastLiveBetsSyncAt = now;
+    const bets = await dataService.fetchLiveBets(gameState.roundId);
+    ui.renderLiveBets(bets);
   }
 
   function adjustBetInput(delta) { ui.setBetInputValue(clamp(ui.getBetInputValue() + delta, 0.01, Math.max(0.01, profile.balance))); }
@@ -447,12 +546,16 @@
   }
 
   function tick() {
-    const now = performance.now();
+    const now = Date.now();
+    syncSharedRoundState();
+    syncLiveBets();
     if (gameState.phase === "preRound") {
       const elapsed = now - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
       ui.setCountdown(remaining);
-      if (elapsed >= gameState.countdownDurationMs) beginRound();
+      if (elapsed >= gameState.countdownDurationMs && gameState.roundStartMs === 0) {
+        beginRound();
+      }
     } else if (gameState.phase === "active") {
       const elapsed = now - gameState.roundStartMs;
       gameState.currentMultiplier = Number(multiplierFromElapsedMs(elapsed).toFixed(2));
@@ -539,7 +642,12 @@
     }
     ui.setBetInputValue(1);
     ui.setCrashPoint(0);
-    beginPreRound();
+    await syncSharedRoundState(true);
+    if (!gameState.roundId) {
+      beginPreRound();
+    } else {
+      syncLiveBets(true);
+    }
     if (CONFIG.DEV_TOOLS_ENABLED) window.runCrashDistributionTest = runCrashDistributionTest;
     requestAnimationFrame(function frame() { tick(); requestAnimationFrame(frame); });
   }

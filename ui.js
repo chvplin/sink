@@ -15,6 +15,7 @@
         currentBet: document.getElementById("current-bet-display"),
         potentialWin: document.getElementById("potential-win-display"),
         history: document.getElementById("history-list"),
+        liveBetsList: document.getElementById("live-bets-list"),
         autoToggle: document.getElementById("auto-cashout-toggle"),
         autoInput: document.getElementById("auto-cashout-input"),
         serverHash: document.getElementById("server-hash-display"),
@@ -312,6 +313,22 @@
         div.className = `leader-row ${row.currentPlayer ? "current-player" : ""}`;
         div.innerHTML = `<div>#${idx + 1}</div><div>${row.name}</div><div>${row.value}</div>`;
         this.el.leaderboardTable.appendChild(div);
+      });
+    }
+
+    renderLiveBets(entries) {
+      if (!this.el.liveBetsList) return;
+      this.el.liveBetsList.innerHTML = "";
+      if (!entries || entries.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "No active bets";
+        this.el.liveBetsList.appendChild(li);
+        return;
+      }
+      entries.forEach((entry) => {
+        const li = document.createElement("li");
+        li.textContent = `${entry.name}: ${this.formatMoney(entry.amount)}`;
+        this.el.liveBetsList.appendChild(li);
       });
     }
 
