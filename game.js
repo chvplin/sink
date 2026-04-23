@@ -5,9 +5,11 @@
     LUCKY_ROUND_PAYOUT_BONUS: 2,
     MILESTONES: [2, 5, 10, 25, 50, 100],
     SHARED_SYNC_MS: 300,
-    MULTIPLIER_BASE_RATE_PER_SEC: 0.5,
-    MULTIPLIER_ACCEL_PER_SEC2: 0.035,
-    MULTIPLIER_MAX_RATE_PER_SEC: 1.2
+    // Multiplier curve: short smooth ease-in, then aggressive capped linear top speed.
+    // Tuned so a full 1.00x -> 10,000x climb finishes in ~120s after the ease window.
+    MULTIPLIER_EASE_SEC: 2.0,
+    MULTIPLIER_EASE_END: 8,
+    MULTIPLIER_TARGET_SEC_FOR_10K: 120
   };
   const PHASE_RANK = { preRound: 1, active: 2, crashed: 3 };
   const content = window.ProgressionContent;
@@ -92,15 +94,19 @@
   }
   function multiplierFromElapsedMs(ms) {
     const t = ms / 1000;
-    const base = CONFIG.MULTIPLIER_BASE_RATE_PER_SEC;
-    const accel = CONFIG.MULTIPLIER_ACCEL_PER_SEC2;
-    const maxRate = CONFIG.MULTIPLIER_MAX_RATE_PER_SEC;
-    const tCap = Math.max(0, (maxRate - base) / (2 * accel));
-    const capValue = 1 + (base * tCap) + (accel * tCap * tCap);
-    const value = t <= tCap
-      ? 1 + (base * t) + (accel * t * t)
-      : capValue + ((t - tCap) * maxRate);
-    return clamp(value, 1, 10000);
+    const ease = Math.max(0.05, CONFIG.MULTIPLIER_EASE_SEC);
+    const easeEnd = Math.max(1.01, CONFIG.MULTIPLIER_EASE_END);
+    const target = Math.max(ease + 0.5, CONFIG.MULTIPLIER_TARGET_SEC_FOR_10K);
+    const maxRate = (10000 - easeEnd) / (target - ease);
+
+    if (t <= ease) {
+      const u = clamp(t / ease, 0, 1);
+      const smooth = u * u * (3 - 2 * u);
+      return clamp(1 + (easeEnd - 1) * smooth, 1, 10000);
+    }
+
+    const linear = easeEnd + (t - ease) * maxRate;
+    return clamp(linear, 1, 10000);
   }
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
 
