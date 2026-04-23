@@ -17,7 +17,7 @@
   --dock-h: 56px;
   --fairness-h: 34px;
   --header-h: 72px;
-  --play-ui-w: minmax(220px, 300px);
+  --play-ui-w: clamp(252px, 32vw, 340px);
 }
 
 html, body {
@@ -219,26 +219,39 @@ html, body {
 
 .play-layout--split {
   display: grid;
-  grid-template-columns: var(--play-ui-w) 1fr;
+  grid-template-columns: var(--play-ui-w) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  gap: 12px;
+  gap: 14px;
   align-items: stretch;
   min-height: calc(100vh - var(--header-h) - var(--dock-h) - var(--fairness-h) - 36px);
 }
 
 /* Undo legacy flex `order` from styles.css so grid columns stay [UI | canvas] */
-.play-layout--split > .play-ui-column,
+.play-layout--split > .play-ui-column {
+  order: unset;
+}
+
+/* Right column: ghost cell — full-screen #scene-canvas shows through (no opaque slab) */
 .play-layout--split > .game-viewport.play-stage {
   order: unset;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0 !important;
+  height: 100%;
+  max-height: none;
+  background: transparent !important;
+  pointer-events: none;
 }
 
 .play-ui-column {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
   max-height: 100%;
   overflow: auto;
+  align-self: stretch;
 }
 
 .play-hud-stack {
@@ -252,8 +265,8 @@ html, body {
 .play-stage {
   grid-column: 2;
   grid-row: 1;
-  min-height: min(58vh, 620px);
   min-width: 0;
+  min-height: 0;
 }
 
 .play-controls-panel {
@@ -268,21 +281,23 @@ html, body {
 
 .play-stage__frame {
   position: relative;
-  height: 100%;
-  min-height: 320px;
-  border-radius: 18px;
-  padding: 3px;
-  background: linear-gradient(145deg, rgba(232, 197, 71, 0.55), rgba(46, 226, 230, 0.15) 40%, rgba(232, 197, 71, 0.35));
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  height: auto;
+  min-height: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .play-stage__canvas {
   position: relative;
-  height: 100%;
-  min-height: 300px;
-  border-radius: 15px;
-  overflow: hidden;
-  background: radial-gradient(ellipse 100% 80% at 50% 100%, rgba(8, 24, 48, 0.9), rgba(2, 6, 14, 0.96));
+  height: auto;
+  min-height: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent !important;
+  pointer-events: none;
 }
 
 .game-viewport.play-stage {
@@ -603,7 +618,7 @@ html, body {
 /* Responsive */
 @media (max-width: 1180px) {
   .play-layout--split {
-    grid-template-columns: minmax(200px, 260px) 1fr;
+    grid-template-columns: minmax(228px, 30vw) minmax(0, 1fr);
   }
 }
 
@@ -612,10 +627,14 @@ html, body {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
   }
+  .play-layout--split > .game-viewport.play-stage {
+    grid-column: 1;
+    grid-row: 1;
+  }
   .play-stage {
     grid-column: 1;
     grid-row: 1;
-    min-height: min(42vh, 380px);
+    min-height: 0 !important;
     order: -1;
   }
   .play-ui-column {
@@ -640,10 +659,14 @@ html, body {
 .mobile-ui .play-layout--split {
   grid-template-columns: 1fr;
 }
+.mobile-ui .play-layout--split > .game-viewport.play-stage {
+  grid-column: 1;
+  grid-row: 1;
+}
 .mobile-ui .play-stage {
   grid-column: 1;
   grid-row: 1;
-  min-height: min(38vh, 320px);
+  min-height: 0 !important;
   order: -1;
 }
 .mobile-ui .play-ui-column {
