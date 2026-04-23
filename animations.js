@@ -2,6 +2,7 @@
   class GameAnimations {
     constructor(canvasId, tintId) {
       this.VISUAL_SPEED_MULTIPLIER = 3.8;
+      this.HORIZONTAL_OFFSET_PX = 150;
       this.canvas = document.getElementById(canvasId);
       this.ctx = this.canvas.getContext("2d");
       this.tintEl = document.getElementById(tintId);
@@ -59,7 +60,7 @@
     }
 
     triggerCrashExplosion() {
-      const px = this.submarine.x * this.width;
+      const px = this.getSubmarineX();
       const py = this.submarine.y * this.height;
       for (let i = 0; i < 65; i += 1) {
         const angle = Math.random() * Math.PI * 2;
@@ -78,11 +79,15 @@
 
     spawnCashoutDiver(winAmount) {
       this.cashoutDivers.push({
-        x: this.submarine.x * this.width,
+        x: this.getSubmarineX(),
         y: this.submarine.y * this.height,
         life: 1.7,
         winAmount
       });
+    }
+
+    getSubmarineX() {
+      return this.submarine.x * this.width + this.HORIZONTAL_OFFSET_PX;
     }
 
     emitBubble(x, y, scale = 1) {
@@ -112,12 +117,13 @@
     updateSubmarine(dt) {
       const t = performance.now() / 1000;
       const visualDepthNorm = Math.min(1, this.scene.depthNorm * this.VISUAL_SPEED_MULTIPLIER);
-      const targetY = 0.16 + visualDepthNorm * 0.74;
+      const surfaceY = 0.14 + Math.sin(t * 2.1) * 0.012;
+      const targetY = this.scene.isActiveRound ? 0.19 + visualDepthNorm * 0.71 : surfaceY;
       this.submarine.y += (targetY - this.submarine.y) * Math.min(1, dt * 3.7);
       this.submarine.tilt = Math.sin(t * 2.2) * 0.07 + (this.scene.isActiveRound ? 0.06 : 0);
 
       if (this.scene.isActiveRound && Math.random() < 0.45) {
-        const px = this.submarine.x * this.width - 50;
+        const px = this.getSubmarineX() - 50;
         const py = this.submarine.y * this.height + 10;
         this.emitBubble(px, py, 1);
       }
@@ -212,7 +218,7 @@
       if (this.scene.didCrash) {
         return;
       }
-      const x = this.submarine.x * this.width;
+      const x = this.getSubmarineX();
       const y = this.submarine.y * this.height;
       this.ctx.save();
       this.ctx.translate(x, y);

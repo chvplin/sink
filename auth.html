@@ -19,7 +19,12 @@
 
       <form id="signin-form" class="auth-form">
         <label>Email <input id="signin-email" type="email" required></label>
-        <label>Password <input id="signin-password" type="password" required minlength="6"></label>
+        <label>Password
+          <div class="password-row">
+            <input id="signin-password" type="password" required minlength="6">
+            <button id="toggle-signin-password" class="secondary" type="button">See</button>
+          </div>
+        </label>
         <button type="submit" class="primary">Sign In</button>
       </form>
 
@@ -27,7 +32,18 @@
         <label>Display Name <input id="signup-display-name" type="text" required minlength="2"></label>
         <label>Full Name <input id="signup-full-name" type="text"></label>
         <label>Email <input id="signup-email" type="email" required></label>
-        <label>Password <input id="signup-password" type="password" required minlength="6"></label>
+        <label>Password
+          <div class="password-row">
+            <input id="signup-password" type="password" required minlength="6">
+            <button id="toggle-signup-password" class="secondary" type="button">See</button>
+          </div>
+        </label>
+        <label>Confirm Password
+          <div class="password-row">
+            <input id="signup-password-confirm" type="password" required minlength="6">
+            <button id="toggle-signup-confirm-password" class="secondary" type="button">See</button>
+          </div>
+        </label>
         <button type="submit" class="primary">Create Account</button>
       </form>
 

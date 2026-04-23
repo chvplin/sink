@@ -4,6 +4,12 @@
   const signUpForm = document.getElementById("signup-form");
   const tabSignIn = document.getElementById("tab-signin");
   const tabSignUp = document.getElementById("tab-signup");
+  const signInPasswordEl = document.getElementById("signin-password");
+  const signUpPasswordEl = document.getElementById("signup-password");
+  const signUpPasswordConfirmEl = document.getElementById("signup-password-confirm");
+  const toggleSignInPasswordBtn = document.getElementById("toggle-signin-password");
+  const toggleSignUpPasswordBtn = document.getElementById("toggle-signup-password");
+  const toggleSignUpConfirmPasswordBtn = document.getElementById("toggle-signup-confirm-password");
 
   function setStatus(msg, isError = false) {
     statusEl.textContent = msg;
@@ -47,6 +53,16 @@
 
     tabSignIn.addEventListener("click", () => switchTab("signin"));
     tabSignUp.addEventListener("click", () => switchTab("signup"));
+    const wireToggle = (btn, input) => {
+      btn.addEventListener("click", () => {
+        const nextType = input.type === "password" ? "text" : "password";
+        input.type = nextType;
+        btn.textContent = nextType === "password" ? "See" : "Hide";
+      });
+    };
+    wireToggle(toggleSignInPasswordBtn, signInPasswordEl);
+    wireToggle(toggleSignUpPasswordBtn, signUpPasswordEl);
+    wireToggle(toggleSignUpConfirmPasswordBtn, signUpPasswordConfirmEl);
 
     signInForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -69,6 +85,12 @@
       const fullName = document.getElementById("signup-full-name").value.trim();
       const email = document.getElementById("signup-email").value.trim();
       const password = document.getElementById("signup-password").value;
+      const passwordConfirm = signUpPasswordConfirmEl.value;
+
+      if (password !== passwordConfirm) {
+        setStatus("Passwords do not match.", true);
+        return;
+      }
 
       setStatus("Creating account...");
       const { data, error } = await client.auth.signUp({

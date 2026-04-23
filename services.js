@@ -186,6 +186,57 @@
       return this.loadPlayerProfile().challenges;
     }
 
+    async loadLeaderboard(metric, limit = 20) {
+      if (!this.supabase) {
+        return [];
+      }
+      try {
+        const { data, error } = await this.supabase
+          .from("leaderboard_scores")
+          .select("user_id, player_id, metric, value, created_at")
+          .eq("metric", metric)
+          .order("value", { ascending: false })
+          .limit(300);
+        if (error || !Array.isArray(data)) {
+          if (error) console.warn("Leaderboard load failed.", error);
+          return [];
+        }
+
+        const seenUsers = new Set();
+        const topUnique = [];
+        for (const row of data) {
+          const userKey = row.user_id || row.player_id;
+          if (!userKey || seenUsers.has(userKey)) continue;
+          seenUsers.add(userKey);
+          topUnique.push(row);
+          if (topUnique.length >= limit) break;
+        }
+
+        const userIds = topUnique.map((r) => r.user_id).filter(Boolean);
+        let namesByUserId = {};
+        if (userIds.length > 0) {
+          const { data: profiles } = await this.supabase
+            .from("public_profiles")
+            .select("user_id, display_name")
+            .in("user_id", userIds);
+          if (Array.isArray(profiles)) {
+            namesByUserId = Object.fromEntries(
+              profiles.map((p) => [p.user_id, p.display_name || "Player"])
+            );
+          }
+        }
+
+        return topUnique.map((row) => ({
+          userId: row.user_id,
+          name: namesByUserId[row.user_id] || row.player_id || "Player",
+          valueRaw: Number(row.value || 0)
+        }));
+      } catch (error) {
+        console.warn("Leaderboard query error.", error);
+        return [];
+      }
+    }
+
     submitLeaderboardScore(payload) {
       const existing = JSON.parse(localStorage.getItem(LEADERBOARD_LOCAL_KEY) || "[]");
       existing.push({ ...payload, submittedAt: Date.now() });

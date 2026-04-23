@@ -10,6 +10,7 @@
   const ui = new window.GameUI();
   const animations = new window.GameAnimations("scene-canvas", "depth-tint");
   let profile = dataService.loadPlayerProfile();
+  let currentLeaderboardTab = "highestMultiplier";
 
   const gameState = {
     phase: "preRound",
@@ -120,13 +121,38 @@
     }
   }
 
+  async function refreshLeaderboard(tab) {
+    currentLeaderboardTab = tab;
+    const metricMap = {
+      highestMultiplier: "highestMultiplier",
+      biggestWin: "biggestWin",
+      highestBalance: "highestBalance",
+      longestStreak: "longestStreak",
+      daily: "daily",
+      weekly: "weekly"
+    };
+    const metric = metricMap[tab] || "highestMultiplier";
+    if (typeof dataService.loadLeaderboard !== "function") {
+      ui.renderLeaderboard([]);
+      return;
+    }
+    const rows = await dataService.loadLeaderboard(metric, 20);
+    const formatted = rows.map((r) => ({
+      name: r.name,
+      value: metric.includes("Multiplier") ? `${r.valueRaw.toFixed(2)}x` : ui.formatMoney(r.valueRaw),
+      currentPlayer: !!(dataService.user && r.userId === dataService.user.id)
+    }));
+    ui.renderLeaderboard(formatted);
+  }
+
   function renderAllPanels() {
     ui.setBalance(profile.balance);
     ui.setStreaks(profile.streaks.win, profile.streaks.dailyLogin);
     ui.renderCollection(content.SUBMARINE_SKINS, profile.unlockedSkinIds, profile.equippedSkinId);
     ui.renderChallengePanels(profile.challenges.daily, profile.challenges.weekly);
     ui.renderAchievements(content.ACHIEVEMENTS, new Set(profile.achievementsUnlocked));
-    ui.renderLeaderboard(buildLeaderboardRows("highestMultiplier"));
+    ui.renderLeaderboard([]);
+    refreshLeaderboard(currentLeaderboardTab);
     const stats = { ...profile.stats, currentWinStreak: profile.streaks.win, bestWinStreak: profile.streaks.bestWin, dailyStreak: profile.streaks.dailyLogin };
     ui.renderStats(stats, profile.achievementsUnlocked.length, getEquippedSkin().name);
     ui.applyAutoBetConfig(profile.settings);
@@ -195,21 +221,6 @@
     });
   }
 
-  function buildLeaderboardRows(type) {
-    const base = Array.from({ length: 10 }, (_, i) => ({ name: `Diver_${i + 1}`, valueRaw: Math.random() * 1000 + 100 }));
-    const valueMap = {
-      highestMultiplier: profile.stats.highestMultiplier,
-      biggestWin: profile.stats.biggestPayout,
-      highestBalance: profile.stats.highestBalance,
-      longestStreak: profile.streaks.bestWin,
-      daily: profile.stats.profitSession,
-      weekly: profile.stats.totalProfit
-    };
-    const current = { name: "You", valueRaw: valueMap[type] || 0, currentPlayer: true };
-    const all = [...base, current].sort((a, b) => b.valueRaw - a.valueRaw).slice(0, 10);
-    return all.map((r) => ({ ...r, value: type.includes("Multiplier") ? `${Number(r.valueRaw).toFixed(2)}x` : ui.formatMoney(Number(r.valueRaw)) }));
-  }
-
   function beginPreRound() {
     const roundRng = createRoundRng(gameState.nonce + 1);
     gameState.phase = "preRound";
@@ -226,7 +237,7 @@
     gameState.crashPoint = generateCrashPoint(gameState.nonce + 1);
     gameState.isLuckyRound = roundRng() < CONFIG.LUCKY_ROUND_CHANCE;
     gameState.countdownStartMs = performance.now();
-    gameState.countdownDurationMs = 3000 + Math.random() * 2000;
+    gameState.countdownDurationMs = 10000;
     ui.setPhase("Prepare your submarine...");
     ui.setLuckyRound(gameState.isLuckyRound);
     ui.setFairness(gameState.serverSeedHash.slice(0, 24), gameState.nonce);
@@ -275,6 +286,12 @@
   }
 
   function closeRoundAfterCrash() {
+    dataService.submitLeaderboardScore({ metric: "highestMultiplier", value: profile.stats.highestMultiplier });
+    dataService.submitLeaderboardScore({ metric: "biggestWin", value: profile.stats.biggestPayout });
+    dataService.submitLeaderboardScore({ metric: "highestBalance", value: profile.stats.highestBalance });
+    dataService.submitLeaderboardScore({ metric: "longestStreak", value: profile.streaks.bestWin });
+    dataService.submitLeaderboardScore({ metric: "daily", value: profile.stats.profitSession });
+    dataService.submitLeaderboardScore({ metric: "weekly", value: profile.stats.totalProfit });
     gameState.activeBet = 0;
     gameState.roundParticipation.playerJoinedRound = false;
     gameState.roundParticipation.playerBetPlaced = false;
@@ -369,7 +386,7 @@
     window.location.href = "auth.html";
   }
 
-  function onLeaderboardTabChange(tab) { ui.renderLeaderboard(buildLeaderboardRows(tab)); }
+  function onLeaderboardTabChange(tab) { refreshLeaderboard(tab); }
   function resetSave() {
     profile = window.GameDataService.buildDefaultProfile();
     applyLoginStreak();

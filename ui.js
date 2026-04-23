@@ -300,6 +300,13 @@
 
     renderLeaderboard(rows) {
       this.el.leaderboardTable.innerHTML = "";
+      if (!rows || rows.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "leader-row";
+        empty.innerHTML = "<div>#</div><div>No real player entries yet</div><div>--</div>";
+        this.el.leaderboardTable.appendChild(empty);
+        return;
+      }
       rows.forEach((row, idx) => {
         const div = document.createElement("div");
         div.className = `leader-row ${row.currentPlayer ? "current-player" : ""}`;
