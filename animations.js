@@ -12,7 +12,10 @@
         multiplier: 1,
         depthNorm: 0,
         isActiveRound: false,
-        didCrash: false
+        didCrash: false,
+        isLuckyRound: false,
+        equippedSkin: null,
+        crashShake: 0
       };
 
       this.submarine = {
@@ -70,6 +73,7 @@
           size: 2 + Math.random() * 4
         });
       }
+      this.scene.crashShake = 0.45;
     }
 
     spawnCashoutDiver(winAmount) {
@@ -173,6 +177,11 @@
       this.ctx.fillStyle = grad;
       this.ctx.fillRect(0, 0, this.width, this.height);
 
+      if (this.scene.isLuckyRound) {
+        this.ctx.fillStyle = "rgba(246,205,80,0.10)";
+        this.ctx.fillRect(0, 0, this.width, this.height);
+      }
+
       if (d < 0.42) {
         this.ctx.fillStyle = `rgba(255,255,255,${0.14 - d * 0.25})`;
         for (let i = 0; i < 4; i += 1) {
@@ -209,15 +218,16 @@
       this.ctx.translate(x, y);
       this.ctx.rotate(this.submarine.tilt);
 
-      this.ctx.fillStyle = "#f7d23b";
-      this.ctx.strokeStyle = "#463203";
+      const skin = this.scene.equippedSkin || { body: "#f7d23b", accent: "#d2a814", trim: "#463203" };
+      this.ctx.fillStyle = skin.body;
+      this.ctx.strokeStyle = skin.trim;
       this.ctx.lineWidth = 3;
       this.ctx.beginPath();
       this.ctx.ellipse(0, 0, 76, 32, 0, 0, Math.PI * 2);
       this.ctx.fill();
       this.ctx.stroke();
 
-      this.ctx.fillStyle = "#d2a814";
+      this.ctx.fillStyle = skin.accent;
       this.ctx.fillRect(-24, -44, 46, 18);
 
       this.ctx.fillStyle = "#aee7ff";
@@ -289,18 +299,25 @@
       const dt = Math.min((ts - this.lastFrameTs) / 1000, 0.033);
       this.lastFrameTs = ts;
 
+      this.scene.crashShake = Math.max(0, this.scene.crashShake - dt);
       this.updateSubmarine(dt);
       this.updateBubbles(dt);
       this.updateAmbientParticles(dt);
       this.updateDivers(dt);
       this.updateExplosion(dt);
 
+      const shakeStrength = this.scene.crashShake > 0 ? this.scene.crashShake * 10 : 0;
+      const shakeX = (Math.random() - 0.5) * shakeStrength;
+      const shakeY = (Math.random() - 0.5) * shakeStrength;
+      this.ctx.save();
+      this.ctx.translate(shakeX, shakeY);
       this.drawBackground();
       this.drawAmbientParticles();
       this.drawBubbles();
       this.drawSubmarine();
       this.drawDivers();
       this.drawExplosion();
+      this.ctx.restore();
 
       requestAnimationFrame((nextTs) => this.render(nextTs));
     }

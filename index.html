@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Submarine Crash Casino</title>
+  <title>Submarine Crash Casino - Phase 2</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="game-root">
     <canvas id="scene-canvas" aria-label="Submarine game scene"></canvas>
-
     <div class="surface-waves"></div>
     <div class="depth-tint" id="depth-tint"></div>
+    <div id="lucky-round-banner" class="lucky-round-banner hidden">Lucky Round! 2x payout bonus active</div>
 
     <header class="top-bar">
       <div class="brand">
@@ -20,76 +20,142 @@
       </div>
       <div class="bank">
         <span>Balance</span>
-        <strong id="balance-display">$100.00</strong>
+        <strong id="balance-display">$1,000.00</strong>
       </div>
     </header>
 
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="play">Play</button>
+      <button class="tab-btn" data-tab="collection">Collection</button>
+      <button class="tab-btn" data-tab="challenges">Challenges</button>
+      <button class="tab-btn" data-tab="achievements">Achievements</button>
+      <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
+      <button class="tab-btn" data-tab="stats">Stats</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
+
     <main class="hud">
-      <section class="multiplier-panel">
-        <div class="multiplier-label">Current Multiplier</div>
-        <div id="multiplier-display" class="multiplier-value">1.00x</div>
-        <div class="depth-row">
-          <span>Depth</span>
-          <div class="depth-meter">
-            <div id="depth-meter-fill"></div>
-          </div>
-          <span id="depth-display">0 m</span>
-        </div>
-        <div class="round-meta">
-          <span id="countdown-display">Next round in --</span>
-          <span id="crash-display">Last crash: --</span>
+      <section id="panel-play" class="tab-panel active">
+        <div class="play-grid">
+          <section class="multiplier-panel">
+            <div class="multiplier-label">Current Multiplier</div>
+            <div id="multiplier-display" class="multiplier-value">1.00x</div>
+            <div class="depth-row">
+              <span>Depth</span>
+              <div class="depth-meter"><div id="depth-meter-fill"></div></div>
+              <span id="depth-display">0 m</span>
+            </div>
+            <div class="round-meta">
+              <span id="countdown-display">Next round in --</span>
+              <span id="crash-display">Last crash: --</span>
+            </div>
+            <div id="milestone-feed" class="milestone-feed"></div>
+          </section>
+
+          <section class="controls-panel">
+            <div class="bet-input-group">
+              <label for="bet-input">Bet Amount</label>
+              <div class="bet-controls">
+                <button data-bet-adjust="-1" class="adjust-btn" type="button">-</button>
+                <input id="bet-input" type="number" min="0.01" step="0.01" value="1.00">
+                <button data-bet-adjust="1" class="adjust-btn" type="button">+</button>
+              </div>
+              <div class="preset-row">
+                <button class="preset-btn" data-preset="1" type="button">$1</button>
+                <button class="preset-btn" data-preset="5" type="button">$5</button>
+                <button class="preset-btn" data-preset="10" type="button">$10</button>
+                <button class="preset-btn" data-preset="25" type="button">$25</button>
+                <button class="preset-btn" data-preset="50" type="button">$50</button>
+              </div>
+            </div>
+
+            <div class="action-buttons">
+              <button id="bet-button" class="action-btn bet-btn" type="button">Place Bet</button>
+              <button id="cashout-button" class="action-btn cashout-btn state-disabled" type="button" disabled>Cash Out</button>
+            </div>
+
+            <div class="stake-info">
+              <div><span>Current Bet</span><strong id="current-bet-display">$0.00</strong></div>
+              <div><span>Potential Win</span><strong id="potential-win-display">$0.00</strong></div>
+            </div>
+
+            <div class="auto-grid">
+              <label class="toggle"><input id="auto-bet-toggle" type="checkbox"><span>Auto Bet</span></label>
+              <label class="toggle"><input id="auto-cashout-toggle" type="checkbox"><span>Auto Cash</span></label>
+              <div class="input-inline"><span>Target</span><input id="auto-cashout-input" type="number" min="1.01" step="0.01" value="2.00"><span>x</span></div>
+              <div class="input-inline"><span>Stop Wins</span><input id="auto-stop-wins" type="number" min="0" step="1" value="0"></div>
+              <div class="input-inline"><span>Stop Losses</span><input id="auto-stop-losses" type="number" min="0" step="1" value="0"></div>
+              <div class="input-inline"><span>Stop Balance &lt;</span><input id="auto-stop-balance" type="number" min="0" step="1" value="0"></div>
+              <small class="warning">Auto-bet can drain fake balance quickly. Use stop conditions.</small>
+            </div>
+          </section>
+
+          <aside class="history-panel">
+            <h2>Crash History</h2>
+            <ul id="history-list"></ul>
+            <div class="streak-card">
+              <div>Win Streak <strong id="win-streak-display">0</strong></div>
+              <div>Daily Login <strong id="daily-streak-display">1</strong></div>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <section class="controls-panel">
-        <div class="bet-input-group">
-          <label for="bet-input">Bet Amount</label>
-          <div class="bet-controls">
-            <button data-bet-adjust="-1" class="adjust-btn" type="button">-</button>
-            <input id="bet-input" type="number" min="0.01" step="0.01" value="1.00">
-            <button data-bet-adjust="1" class="adjust-btn" type="button">+</button>
-          </div>
-          <div class="preset-row">
-            <button class="preset-btn" data-preset="1" type="button">$1</button>
-            <button class="preset-btn" data-preset="5" type="button">$5</button>
-            <button class="preset-btn" data-preset="10" type="button">$10</button>
-            <button class="preset-btn" data-preset="25" type="button">$25</button>
-            <button class="preset-btn" data-preset="50" type="button">$50</button>
-          </div>
-        </div>
-
-        <div class="action-buttons">
-          <button id="bet-button" class="action-btn bet-btn" type="button">Place Bet</button>
-          <button id="cashout-button" class="action-btn cashout-btn" type="button" disabled>Cash Out</button>
-        </div>
-
-        <div class="stake-info">
-          <div><span>Current Bet</span><strong id="current-bet-display">$0.00</strong></div>
-          <div><span>Potential Win</span><strong id="potential-win-display">$0.00</strong></div>
-        </div>
-
-        <div class="auto-cashout-row">
-          <label class="toggle">
-            <input id="auto-cashout-toggle" type="checkbox">
-            <span>Auto Cash Out</span>
-          </label>
-          <input id="auto-cashout-input" type="number" min="1.01" step="0.01" value="2.00" disabled>
-          <span>x</span>
-        </div>
+      <section id="panel-collection" class="tab-panel">
+        <h2>Submarine Hangar</h2>
+        <div id="collection-grid" class="collection-grid"></div>
       </section>
 
-      <aside class="history-panel">
-        <h2>Crash History</h2>
-        <ul id="history-list"></ul>
-      </aside>
+      <section id="panel-challenges" class="tab-panel">
+        <h2>Daily Challenges</h2>
+        <div id="daily-challenges" class="challenge-list"></div>
+        <h2>Weekly Challenges</h2>
+        <div id="weekly-challenges" class="challenge-list"></div>
+      </section>
+
+      <section id="panel-achievements" class="tab-panel">
+        <h2>Achievements</h2>
+        <div id="achievement-grid" class="achievement-grid"></div>
+      </section>
+
+      <section id="panel-leaderboard" class="tab-panel">
+        <h2>Leaderboard</h2>
+        <div class="leader-tabs">
+          <button class="small-tab active" data-leader-tab="highestMultiplier">Highest Multiplier</button>
+          <button class="small-tab" data-leader-tab="biggestWin">Biggest Win</button>
+          <button class="small-tab" data-leader-tab="highestBalance">Highest Balance</button>
+          <button class="small-tab" data-leader-tab="longestStreak">Longest Streak</button>
+          <button class="small-tab" data-leader-tab="daily">Daily</button>
+          <button class="small-tab" data-leader-tab="weekly">Weekly</button>
+        </div>
+        <div id="leaderboard-table"></div>
+      </section>
+
+      <section id="panel-stats" class="tab-panel">
+        <h2>Player Stats</h2>
+        <div id="stats-grid" class="stats-grid"></div>
+      </section>
+
+      <section id="panel-settings" class="tab-panel">
+        <h2>Settings</h2>
+        <div class="settings-list">
+          <label class="toggle"><input id="audio-toggle" type="checkbox" checked><span>Enable Audio Hooks</span></label>
+          <button id="reset-save-button" class="action-btn danger-btn" type="button">Reset Save</button>
+          <small>Reset returns your profile to a fresh $1,000 start.</small>
+        </div>
+      </section>
     </main>
 
     <footer class="fairness-bar">
       <div>Server Seed Hash: <code id="server-hash-display">--</code></div>
       <div>Round Nonce: <code id="nonce-display">0</code></div>
     </footer>
+
+    <div id="toast-root" class="toast-root"></div>
   </div>
 
+  <script src="progression.js"></script>
+  <script src="services.js"></script>
   <script src="animations.js"></script>
   <script src="ui.js"></script>
   <script src="game.js"></script>
