@@ -70,6 +70,11 @@
       const mq = window.matchMedia("(max-width: 820px)");
       const apply = () => {
         document.body.classList.toggle("mobile-ui", mq.matches);
+        const narrow = mq.matches;
+        const historyFold = document.getElementById("play-history-details");
+        const autoFold = document.getElementById("play-auto-details");
+        if (historyFold) historyFold.open = !narrow;
+        if (autoFold) autoFold.open = !narrow;
       };
       apply();
       if (typeof mq.addEventListener === "function") {

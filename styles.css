@@ -404,11 +404,26 @@ html, body {
   border-radius: 8px;
 }
 .mobile-ui .hud {
-  inset: 82px 6px 38px;
+  inset: 76px 4px 34px;
 }
 .mobile-ui .tab-panel {
   border-radius: 10px;
   padding: 8px;
+}
+
+.mobile-ui #panel-play.tab-panel.active {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 4px;
+}
+
+.mobile-ui #panel-play .play-layout--split {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
+  grid-template-columns: 1fr;
 }
 .mobile-ui .tab-panel h2 {
   font-size: 1rem;
@@ -419,14 +434,23 @@ html, body {
   margin: 0.6em 0 0.35em;
 }
 .mobile-ui .game-viewport {
-  min-height: 200px;
+  min-height: 0;
 }
-.mobile-ui .viewport-hud {
+.mobile-ui .viewport-hud:not(.viewport-hud--left) {
   top: 6px;
   left: 6px;
   width: min(200px, calc(100% - 12px));
   padding: 6px 8px;
   border-radius: 10px;
+}
+
+.mobile-ui .viewport-hud.viewport-hud--left {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  width: 100%;
+  max-width: 100%;
 }
 .mobile-ui .multiplier-label {
   font-size: 0.65rem;
@@ -456,7 +480,7 @@ html, body {
 }
 .mobile-ui .controls-panel,
 .mobile-ui .history-panel {
-  padding: 8px;
+  padding: 6px;
   border-radius: 10px;
 }
 .mobile-ui .history-panel h2 {
@@ -495,13 +519,13 @@ html, body {
 }
 .mobile-ui .action-buttons {
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 8px;
 }
 .mobile-ui .action-btn {
-  padding: 9px 6px;
-  font-size: 0.82rem;
-  border-radius: 9px;
+  padding: 8px 5px;
+  font-size: 0.78rem;
+  border-radius: 8px;
 }
 .mobile-ui .stake-info {
   grid-template-columns: 1fr 1fr;

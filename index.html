@@ -114,26 +114,36 @@
               <div><span>Potential Win</span><strong id="potential-win-display">$0.00</strong></div>
             </div>
 
-            <div class="auto-grid">
-              <label class="toggle"><input id="auto-bet-toggle" type="checkbox"><span>Auto Bet</span></label>
-              <label class="toggle"><input id="auto-cashout-toggle" type="checkbox"><span>Auto Cash</span></label>
-              <div class="input-inline"><span>Target</span><input id="auto-cashout-input" type="number" min="1.01" step="0.01" value="2.00"><span>x</span></div>
-              <div class="input-inline"><span>Stop Wins</span><input id="auto-stop-wins" type="number" min="0" step="1" value="0"></div>
-              <div class="input-inline"><span>Stop Losses</span><input id="auto-stop-losses" type="number" min="0" step="1" value="0"></div>
-              <div class="input-inline"><span>Stop Balance &lt;</span><input id="auto-stop-balance" type="number" min="0" step="1" value="0"></div>
-              <small class="warning">Auto-bet can drain fake balance quickly. Use stop conditions.</small>
-            </div>
+            <details id="play-auto-details" class="play-fold play-fold--auto" open>
+              <summary class="play-fold__summary">Auto bet &amp; cashout</summary>
+              <div class="play-fold__body">
+                <div class="auto-grid">
+                  <label class="toggle"><input id="auto-bet-toggle" type="checkbox"><span>Auto Bet</span></label>
+                  <label class="toggle"><input id="auto-cashout-toggle" type="checkbox"><span>Auto Cash</span></label>
+                  <div class="input-inline"><span>Target</span><input id="auto-cashout-input" type="number" min="1.01" step="0.01" value="2.00"><span>x</span></div>
+                  <div class="input-inline"><span>Stop Wins</span><input id="auto-stop-wins" type="number" min="0" step="1" value="0"></div>
+                  <div class="input-inline"><span>Stop Losses</span><input id="auto-stop-losses" type="number" min="0" step="1" value="0"></div>
+                  <div class="input-inline"><span>Stop Balance &lt;</span><input id="auto-stop-balance" type="number" min="0" step="1" value="0"></div>
+                  <small class="warning">Auto-bet can drain fake balance quickly. Use stop conditions.</small>
+                </div>
+              </div>
+            </details>
           </section>
 
           <aside class="play-side-panel history-panel">
-            <h2>Crash History</h2>
-            <ul id="history-list"></ul>
-            <h3>Current Bets</h3>
-            <ul id="live-bets-list" class="live-bets-list"></ul>
-            <div class="streak-card">
-              <div>Win Streak <strong id="win-streak-display">0</strong></div>
-              <div>Daily Login <strong id="daily-streak-display">1</strong></div>
-            </div>
+            <details id="play-history-details" class="play-fold play-fold--history" open>
+              <summary class="play-fold__summary">Crash history &amp; live bets</summary>
+              <div class="play-fold__body">
+                <h2>Crash History</h2>
+                <ul id="history-list"></ul>
+                <h3>Current Bets</h3>
+                <ul id="live-bets-list" class="live-bets-list"></ul>
+                <div class="streak-card">
+                  <div>Win Streak <strong id="win-streak-display">0</strong></div>
+                  <div>Daily Login <strong id="daily-streak-display">1</strong></div>
+                </div>
+              </div>
+            </details>
           </aside>
           </aside>
 
