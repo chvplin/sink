@@ -4,7 +4,7 @@
     LUCKY_ROUND_CHANCE: 0.05,
     LUCKY_ROUND_PAYOUT_BONUS: 2,
     MILESTONES: [2, 5, 10, 25, 50, 100],
-    SHARED_SYNC_MS: 900
+    SHARED_SYNC_MS: 300
   };
   const PHASE_RANK = { preRound: 1, active: 2, crashed: 3 };
   const content = window.ProgressionContent;
@@ -25,6 +25,8 @@
     roundStartMs: 0,
     roundEndMs: 0,
     roundId: "",
+    roundHostUserId: "",
+    isRoundHost: false,
     didCrash: false,
     hasCashedOut: false,
     lastCrash: 0,
@@ -100,6 +102,15 @@
     ui.updateCashOutButtonState({ canCashout: canCash, hasCashedOut: gameState.hasCashedOut });
     ui.setActionState({ canBet: gameState.phase === "preRound" && gameState.queuedBet === 0, canCashout: canCash });
     return canCash;
+  }
+
+  function getCurrentUserId() {
+    return dataService.user ? dataService.user.id : "";
+  }
+
+  function refreshHostRole() {
+    const me = getCurrentUserId();
+    gameState.isRoundHost = !!(me && gameState.roundHostUserId && me === gameState.roundHostUserId);
   }
 
   function applyLoginStreak() {
@@ -244,6 +255,8 @@
       playerCashedOut: false
     };
     gameState.roundId = `round-${gameState.nonce + 1}`;
+    gameState.roundHostUserId = getCurrentUserId();
+    refreshHostRole();
     gameState.crashPoint = generateCrashPoint();
     gameState.isLuckyRound = roundRng() < CONFIG.LUCKY_ROUND_CHANCE;
     gameState.countdownStartMs = Date.now();
@@ -299,7 +312,7 @@
     profile.streaks.win = 0;
   }
 
-  function closeRoundAfterCrash() {
+  function closeRoundAfterCrash(scheduleNextRound = true) {
     dataService.submitLeaderboardScore({ metric: "highestMultiplier", value: profile.stats.highestMultiplier });
     dataService.submitLeaderboardScore({ metric: "biggestWin", value: profile.stats.biggestPayout });
     dataService.submitLeaderboardScore({ metric: "highestBalance", value: profile.stats.highestBalance });
@@ -314,10 +327,14 @@
     gameState.nonce += 1;
     saveAll();
     renderAllPanels();
-    setTimeout(beginPreRound, 2400);
+    if (scheduleNextRound) {
+      setTimeout(() => {
+        beginPreRound();
+      }, 2400);
+    }
   }
 
-  function crashRound() {
+  function crashRound({ publish = true, scheduleNextRound = true } = {}) {
     gameState.phase = "crashed";
     gameState.didCrash = true;
     gameState.roundEndMs = Date.now();
@@ -337,8 +354,10 @@
     ui.setLuckyRound(false);
     animations.triggerCrashExplosion();
     updateCashOutButtonState();
-    publishRoundState();
-    closeRoundAfterCrash();
+    if (publish) {
+      publishRoundState();
+    }
+    closeRoundAfterCrash(scheduleNextRound);
   }
 
   function placeBet() {
@@ -386,6 +405,7 @@
 
   function publishRoundState() {
     if (typeof dataService.publishLiveRound !== "function") return;
+    if (!gameState.isRoundHost) return;
     dataService.publishLiveRound({
       roundId: gameState.roundId,
       phase: gameState.phase,
@@ -416,6 +436,8 @@
 
     gameState.lastSharedStateAt = publishedAt || Date.now();
     gameState.roundId = state.roundId;
+    gameState.roundHostUserId = state.publisherUserId || gameState.roundHostUserId || "";
+    refreshHostRole();
     gameState.phase = state.phase;
     gameState.nonce = Number(state.nonce || gameState.nonce);
     gameState.crashPoint = Number(state.crashPoint || gameState.crashPoint);
@@ -439,7 +461,11 @@
     gameState.lastSharedSyncAt = now;
     const latest = await dataService.fetchLatestLiveRound();
     if (!latest) {
-      if (!gameState.roundId) beginPreRound();
+      if (!gameState.roundId) {
+        gameState.roundHostUserId = getCurrentUserId();
+        refreshHostRole();
+        beginPreRound();
+      }
       return;
     }
     applyLiveRoundState(latest);
@@ -571,7 +597,7 @@
       const elapsed = now - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
       ui.setCountdown(remaining);
-      if (elapsed >= gameState.countdownDurationMs) {
+      if (elapsed >= gameState.countdownDurationMs && gameState.isRoundHost) {
         beginRound();
       }
     } else if (gameState.phase === "active") {
@@ -584,7 +610,10 @@
       }
       if (gameState.currentMultiplier >= gameState.crashPoint) {
         handleRoundMetrics();
-        crashRound();
+        crashRound({
+          publish: gameState.isRoundHost,
+          scheduleNextRound: gameState.isRoundHost
+        });
       } else {
         ui.setBetInfo(gameState.activeBet, gameState.activeBet > 0 ? gameState.activeBet * gameState.currentMultiplier : 0);
         evaluateAutoCashout();
