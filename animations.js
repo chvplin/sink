@@ -29,9 +29,11 @@
       this.ambientParticles = [];
       this.cashoutDivers = [];
       this.explosionParticles = [];
+      this.directionalParticles = [];
 
       this.lastFrameTs = 0;
       this.initAmbientParticles(80);
+      this.initDirectionalParticles(50);
       this.resize();
       window.addEventListener("resize", () => this.resize());
       requestAnimationFrame((ts) => this.render(ts));
@@ -114,6 +116,20 @@
       }
     }
 
+    initDirectionalParticles(count) {
+      this.directionalParticles = [];
+      for (let i = 0; i < count; i += 1) {
+        this.directionalParticles.push({
+          x: Math.random(),
+          y: Math.random(),
+          vx: (Math.random() * 0.05) - 0.025,
+          vy: (Math.random() * 0.02) - 0.01,
+          size: 0.8 + Math.random() * 2.2,
+          alpha: 0.08 + Math.random() * 0.15
+        });
+      }
+    }
+
     updateSubmarine(dt) {
       const t = performance.now() / 1000;
       const visualDepthNorm = Math.min(1, this.scene.depthNorm * this.VISUAL_SPEED_MULTIPLIER);
@@ -145,6 +161,17 @@
           p.y = 1.02;
           p.x = Math.random();
         }
+      }
+    }
+
+    updateDirectionalParticles(dt) {
+      for (const p of this.directionalParticles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (p.x < -0.04) p.x = 1.04;
+        if (p.x > 1.04) p.x = -0.04;
+        if (p.y < -0.04) p.y = 1.04;
+        if (p.y > 1.04) p.y = -0.04;
       }
     }
 
@@ -225,6 +252,89 @@
         this.ctx.fill();
       }
       this.ctx.globalAlpha = 1;
+    }
+
+    drawDirectionalParticles() {
+      const visualDepthNorm = Math.min(1, this.scene.depthNorm * this.VISUAL_SPEED_MULTIPLIER);
+      for (const p of this.directionalParticles) {
+        this.ctx.globalAlpha = p.alpha * (0.6 + visualDepthNorm);
+        this.ctx.fillStyle = "#bfefff";
+        this.ctx.beginPath();
+        this.ctx.ellipse(
+          p.x * this.width,
+          p.y * this.height,
+          p.size * 1.8,
+          p.size,
+          0.4,
+          0,
+          Math.PI * 2
+        );
+        this.ctx.fill();
+      }
+      this.ctx.globalAlpha = 1;
+    }
+
+    drawFishSchool(depthNorm) {
+      if (depthNorm < 0.12 || depthNorm > 0.6) return;
+      const t = performance.now() / 1000;
+      this.ctx.fillStyle = "rgba(197, 229, 255, 0.7)";
+      for (let i = 0; i < 8; i += 1) {
+        const x = (this.width * 0.2) + ((i * 130 + t * 55) % (this.width * 0.7));
+        const y = this.height * (0.34 + 0.04 * Math.sin(t * 0.9 + i));
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y, 10, 4.5, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+    }
+
+    drawSharks(depthNorm) {
+      if (depthNorm < 0.45 || depthNorm > 0.85) return;
+      const t = performance.now() / 1000;
+      this.ctx.fillStyle = "rgba(40, 63, 96, 0.72)";
+      for (let i = 0; i < 2; i += 1) {
+        const x = this.width * (0.25 + (i * 0.35)) + Math.sin(t * 0.7 + i) * 40;
+        const y = this.height * (0.52 + i * 0.12);
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - 48, y);
+        this.ctx.lineTo(x + 34, y - 13);
+        this.ctx.lineTo(x + 58, y);
+        this.ctx.lineTo(x + 34, y + 13);
+        this.ctx.closePath();
+        this.ctx.fill();
+      }
+    }
+
+    drawKraken(depthNorm) {
+      if (depthNorm < 0.82) return;
+      const t = performance.now() / 1000;
+      this.ctx.fillStyle = "rgba(66, 42, 92, 0.48)";
+      const baseX = this.width * 0.72;
+      const baseY = this.height * 0.74;
+      this.ctx.beginPath();
+      this.ctx.ellipse(baseX, baseY, 60, 44, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+      for (let i = 0; i < 6; i += 1) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(baseX - 38 + i * 14, baseY + 28);
+        this.ctx.quadraticCurveTo(
+          baseX - 24 + i * 10 + Math.sin(t + i) * 20,
+          baseY + 72 + i * 2,
+          baseX - 52 + i * 18,
+          baseY + 122
+        );
+        this.ctx.strokeStyle = "rgba(66, 42, 92, 0.46)";
+        this.ctx.lineWidth = 5;
+        this.ctx.stroke();
+      }
+    }
+
+    drawWaterGloss() {
+      const grad = this.ctx.createLinearGradient(0, 0, this.width, this.height * 0.5);
+      grad.addColorStop(0, "rgba(255,255,255,0.12)");
+      grad.addColorStop(0.5, "rgba(255,255,255,0.03)");
+      grad.addColorStop(1, "rgba(255,255,255,0.0)");
+      this.ctx.fillStyle = grad;
+      this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
     drawSubmarine() {
@@ -322,6 +432,7 @@
       this.updateSubmarine(dt);
       this.updateBubbles(dt);
       this.updateAmbientParticles(dt);
+      this.updateDirectionalParticles(dt);
       this.updateDivers(dt);
       this.updateExplosion(dt);
 
@@ -332,6 +443,11 @@
       this.ctx.translate(shakeX, shakeY);
       this.drawBackground();
       this.drawAmbientParticles();
+      this.drawDirectionalParticles();
+      this.drawFishSchool(this.scene.depthNorm);
+      this.drawSharks(this.scene.depthNorm);
+      this.drawKraken(this.scene.depthNorm);
+      this.drawWaterGloss();
       this.drawBubbles();
       this.drawSubmarine();
       this.drawDivers();

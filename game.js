@@ -43,7 +43,8 @@
     clientSeed: "submarine-player-seed-v2",
     lastSharedStateAt: 0,
     lastSharedSyncAt: 0,
-    lastLiveBetsSyncAt: 0
+    lastLiveBetsSyncAt: 0,
+    lastChallengeRealtimeCheckAt: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
@@ -161,6 +162,7 @@
     const stats = { ...profile.stats, currentWinStreak: profile.streaks.win, bestWinStreak: profile.streaks.bestWin, dailyStreak: profile.streaks.dailyLogin };
     ui.renderStats(stats, profile.achievementsUnlocked.length, getEquippedSkin().name);
     ui.applyAutoBetConfig(profile.settings);
+    ui.renderLiveBets([]);
   }
 
   function updateChallenges(metricName, value) {
@@ -247,7 +249,7 @@
     gameState.countdownStartMs = Date.now();
     gameState.countdownDurationMs = 10000;
     ui.setPhase("Prepare your submarine...");
-    ui.setLuckyRound(gameState.isLuckyRound);
+    ui.setLuckyRound(false);
     ui.setFairness(gameState.serverSeedHash.slice(0, 24), gameState.nonce);
     ui.setBetInfo(gameState.queuedBet, 0);
     updateCashOutButtonState();
@@ -264,6 +266,7 @@
     gameState.roundParticipation.betAmount = gameState.activeBet;
     gameState.queuedBet = 0;
     ui.setPhase(gameState.activeBet > 0 ? "Dive in progress! Cash out before implosion." : "Spectating this dive");
+    ui.setLuckyRound(gameState.isLuckyRound);
     updateCashOutButtonState();
     publishRoundState();
   }
@@ -331,6 +334,7 @@
     } else {
       ui.setPhase("Round ended.");
     }
+    ui.setLuckyRound(false);
     animations.triggerCrashExplosion();
     updateCashOutButtonState();
     publishRoundState();
@@ -354,6 +358,7 @@
     ui.setBetInfo(gameState.queuedBet, gameState.queuedBet);
     ui.setPhase(`Bet locked: ${ui.formatMoney(gameState.queuedBet)}`);
     publishLiveBet("active");
+    syncLiveBets(true);
     saveAll();
   }
 
@@ -442,11 +447,12 @@
 
   function publishLiveBet(status) {
     if (typeof dataService.publishLiveBet !== "function") return;
-    if (!didPlayerParticipateInRound()) return;
+    const betAmount = gameState.roundParticipation.betAmount || gameState.queuedBet || gameState.activeBet || 0;
+    if (betAmount <= 0) return;
     dataService.publishLiveBet({
       roundId: gameState.roundId,
       status,
-      amount: gameState.roundParticipation.betAmount,
+      amount: betAmount,
       displayName: typeof dataService.getCurrentDisplayName === "function"
         ? dataService.getCurrentDisplayName()
         : "Player"
@@ -460,6 +466,18 @@
     gameState.lastLiveBetsSyncAt = now;
     const bets = await dataService.fetchLiveBets(gameState.roundId);
     ui.renderLiveBets(bets);
+  }
+
+  function maybeRunRealtimeChallengeReset(nowMs) {
+    if (nowMs - gameState.lastChallengeRealtimeCheckAt < 30000) return;
+    gameState.lastChallengeRealtimeCheckAt = nowMs;
+    const dailyKey = window.GameDataService.todayKey();
+    const weeklyKey = window.GameDataService.startOfWeekKey();
+    if (profile.challenges.dailyKey !== dailyKey || profile.challenges.weeklyKey !== weeklyKey) {
+      maybeResetChallenges();
+      saveAll();
+      renderAllPanels();
+    }
   }
 
   function adjustBetInput(delta) { ui.setBetInputValue(clamp(ui.getBetInputValue() + delta, 0.01, Math.max(0.01, profile.balance))); }
@@ -546,6 +564,7 @@
 
   function tick() {
     const now = Date.now();
+    maybeRunRealtimeChallengeReset(now);
     syncSharedRoundState();
     syncLiveBets();
     if (gameState.phase === "preRound") {
@@ -583,7 +602,7 @@
       depthNorm,
       isActiveRound: gameState.phase === "active",
       didCrash: gameState.didCrash,
-      isLuckyRound: gameState.isLuckyRound,
+      isLuckyRound: gameState.isLuckyRound && gameState.phase === "active",
       equippedSkin: getEquippedSkin().colors
     });
   }
