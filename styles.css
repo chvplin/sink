@@ -404,7 +404,7 @@ html, body {
   border-radius: 8px;
 }
 .mobile-ui .hud {
-  inset: 76px 4px 34px;
+  inset: 70px 4px 28px;
 }
 .mobile-ui .tab-panel {
   border-radius: 10px;
@@ -416,7 +416,7 @@ html, body {
   flex-direction: column;
   min-height: 0;
   height: 100%;
-  padding: 4px;
+  padding: 0;
 }
 
 .mobile-ui #panel-play .play-layout--split {

@@ -2,10 +2,10 @@
   class GameAnimations {
     constructor(canvasId, tintId) {
       this.VISUAL_SPEED_MULTIPLIER = 3.8;
-      this.HORIZONTAL_OFFSET_PX = 150;
       this.canvas = document.getElementById(canvasId);
       this.ctx = this.canvas.getContext("2d");
       this.tintEl = document.getElementById(tintId);
+      this.gameRoot = document.getElementById("game-root");
       this.width = 0;
       this.height = 0;
 
@@ -21,9 +21,12 @@
 
       this.submarine = {
         x: 0.5,
-        y: 0.18,
+        y: 0.22,
         tilt: 0
       };
+
+      /** Smoothed 0–1 depth used for parallax / tint (matches visual depth cap) */
+      this.smoothedVisualDepth = 0;
 
       this.bubbles = [];
       this.ambientParticles = [];
@@ -32,6 +35,7 @@
       this.directionalParticles = [];
 
       this.lastFrameTs = 0;
+      this.worldScrollY = 0;
       this.initAmbientParticles(80);
       this.initDirectionalParticles(50);
       this.resize();
@@ -57,8 +61,8 @@
       };
 
       const visualDepthNorm = Math.min(1, this.scene.depthNorm * this.VISUAL_SPEED_MULTIPLIER);
-      const tintOpacity = 0.2 + visualDepthNorm * 0.63;
-      this.tintEl.style.opacity = `${Math.min(0.86, tintOpacity)}`;
+      const tintOpacity = 0.12 + visualDepthNorm * 0.88;
+      this.tintEl.style.opacity = `${Math.min(0.94, tintOpacity)}`;
     }
 
     triggerCrashExplosion() {
@@ -89,7 +93,7 @@
     }
 
     getSubmarineX() {
-      return this.submarine.x * this.width + this.HORIZONTAL_OFFSET_PX;
+      return this.submarine.x * this.width;
     }
 
     emitBubble(x, y, scale = 1) {
@@ -133,8 +137,9 @@
     updateSubmarine(dt) {
       const t = performance.now() / 1000;
       const visualDepthNorm = Math.min(1, this.scene.depthNorm * this.VISUAL_SPEED_MULTIPLIER);
-      const surfaceY = 0.14 + Math.sin(t * 2.1) * 0.012;
-      const targetY = this.scene.isActiveRound ? 0.19 + visualDepthNorm * 0.71 : surfaceY;
+      const surfaceY = 0.24 + Math.sin(t * 2.1) * 0.014;
+      const diveCenterY = 0.5;
+      const targetY = this.scene.isActiveRound ? diveCenterY : surfaceY;
       this.submarine.y += (targetY - this.submarine.y) * Math.min(1, dt * 3.7);
       this.submarine.tilt = Math.sin(t * 2.2) * 0.07 + (this.scene.isActiveRound ? 0.06 : 0);
 
@@ -155,8 +160,9 @@
     }
 
     updateAmbientParticles(dt) {
+      const driftUp = this.smoothedVisualDepth * 0.42;
       for (const p of this.ambientParticles) {
-        p.y += p.vy * dt;
+        p.y += (p.vy - driftUp) * dt;
         if (p.y < -0.02) {
           p.y = 1.02;
           p.x = Math.random();
@@ -165,9 +171,10 @@
     }
 
     updateDirectionalParticles(dt) {
+      const upDrift = this.smoothedVisualDepth * 0.2 * dt;
       for (const p of this.directionalParticles) {
         p.x += p.vx * dt;
-        p.y += p.vy * dt;
+        p.y += p.vy * dt - upDrift;
         if (p.x < -0.04) p.x = 1.04;
         if (p.x > 1.04) p.x = -0.04;
         if (p.y < -0.04) p.y = 1.04;
@@ -198,17 +205,18 @@
     }
 
     drawBackground() {
-      const d = Math.min(1, this.scene.depthNorm * this.VISUAL_SPEED_MULTIPLIER);
-      const topH = 200 - d * 180;
-      const sat = 95 - d * 55;
-      const lightTop = 66 - d * 48;
-      const lightBottom = 33 - d * 25;
+      const d = this.smoothedVisualDepth;
+      const topH = 205 - d * 200;
+      const sat = 96 - d * 62;
+      const lightTop = 68 - d * 58;
+      const lightBottom = 36 - d * 32;
 
       const grad = this.ctx.createLinearGradient(0, 0, 0, this.height);
-      grad.addColorStop(0, `hsl(${topH}, ${sat}%, ${Math.max(4, lightTop)}%)`);
-      grad.addColorStop(1, `hsl(${topH - 12}, ${sat - 12}%, ${Math.max(2, lightBottom)}%)`);
+      grad.addColorStop(0, `hsl(${topH}, ${sat}%, ${Math.max(3, lightTop)}%)`);
+      grad.addColorStop(1, `hsl(${topH - 18}, ${sat - 18}%, ${Math.max(1, lightBottom)}%)`);
       this.ctx.fillStyle = grad;
-      this.ctx.fillRect(0, 0, this.width, this.height);
+      const pad = Math.abs(this.worldScrollY || 0) + 100;
+      this.ctx.fillRect(-pad, -pad, this.width + pad * 2, this.height + pad * 2);
 
       if (this.scene.isLuckyRound) {
         this.ctx.fillStyle = "rgba(246,205,80,0.10)";
@@ -227,14 +235,15 @@
         }
       }
 
-      // Visible animated waterline waves near the submarine start area.
+      // Waterline: moves upward on screen as depth increases (dive illusion while sub stays centered).
       const t = performance.now() / 1000;
-      const waveY = this.height * 0.2;
-      this.ctx.lineWidth = 3;
-      this.ctx.strokeStyle = "rgba(220, 245, 255, 0.55)";
+      const waveBase = this.height * (0.2 - d * 0.38);
+      const waveAmp = 5 + d * 5;
+      this.ctx.lineWidth = 2.2 + d * 1.2;
+      this.ctx.strokeStyle = `rgba(220, 245, 255, ${0.55 - d * 0.35})`;
       this.ctx.beginPath();
-      for (let x = 0; x <= this.width; x += 12) {
-        const y = waveY + Math.sin(x * 0.018 + t * 2.1) * 6;
+      for (let x = 0; x <= this.width; x += 10) {
+        const y = waveBase + Math.sin(x * 0.018 + t * 2.1) * waveAmp;
         if (x === 0) this.ctx.moveTo(x, y);
         else this.ctx.lineTo(x, y);
       }
@@ -429,6 +438,9 @@
       this.lastFrameTs = ts;
 
       this.scene.crashShake = Math.max(0, this.scene.crashShake - dt);
+      const targetDepth = Math.min(1, this.scene.depthNorm * this.VISUAL_SPEED_MULTIPLIER);
+      this.smoothedVisualDepth += (targetDepth - this.smoothedVisualDepth) * Math.min(1, dt * 3.2);
+
       this.updateSubmarine(dt);
       this.updateBubbles(dt);
       this.updateAmbientParticles(dt);
@@ -439,8 +451,15 @@
       const shakeStrength = this.scene.crashShake > 0 ? this.scene.crashShake * 10 : 0;
       const shakeX = (Math.random() - 0.5) * shakeStrength;
       const shakeY = (Math.random() - 0.5) * shakeStrength;
+      this.worldScrollY = -this.smoothedVisualDepth * this.height * 0.52;
+      if (this.gameRoot) {
+        this.gameRoot.style.setProperty("--scene-depth", this.smoothedVisualDepth.toFixed(4));
+      }
+
       this.ctx.save();
       this.ctx.translate(shakeX, shakeY);
+      this.ctx.save();
+      this.ctx.translate(0, this.worldScrollY);
       this.drawBackground();
       this.drawAmbientParticles();
       this.drawDirectionalParticles();
@@ -448,6 +467,8 @@
       this.drawSharks(this.scene.depthNorm);
       this.drawKraken(this.scene.depthNorm);
       this.drawWaterGloss();
+      this.ctx.restore();
+
       this.drawBubbles();
       this.drawSubmarine();
       this.drawDivers();
