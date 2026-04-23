@@ -5,9 +5,9 @@
     LUCKY_ROUND_PAYOUT_BONUS: 2,
     MILESTONES: [2, 5, 10, 25, 50, 100],
     SHARED_SYNC_MS: 300,
-    MULTIPLIER_BASE_RATE_PER_SEC: 0.33,
-    MULTIPLIER_ACCEL_PER_SEC2: 0.018,
-    MULTIPLIER_MAX_RATE_PER_SEC: 0.72
+    MULTIPLIER_BASE_RATE_PER_SEC: 0.5,
+    MULTIPLIER_ACCEL_PER_SEC2: 0.035,
+    MULTIPLIER_MAX_RATE_PER_SEC: 1.2
   };
   const PHASE_RANK = { preRound: 1, active: 2, crashed: 3 };
   const content = window.ProgressionContent;
