@@ -142,6 +142,7 @@
         <h2>Settings</h2>
         <div class="settings-list">
           <label class="toggle"><input id="audio-toggle" type="checkbox" checked><span>Enable Audio Hooks</span></label>
+          <button id="signout-button" class="action-btn" type="button">Sign Out</button>
           <button id="reset-save-button" class="action-btn danger-btn" type="button">Reset Save</button>
           <small>Reset returns your profile to a fresh $1,000 start.</small>
         </div>
@@ -157,6 +158,8 @@
   </div>
 
   <script src="progression.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
   <script src="services.js"></script>
   <script src="animations.js"></script>
   <script src="ui.js"></script>

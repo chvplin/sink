@@ -46,7 +46,8 @@
         luckyBanner: document.getElementById("lucky-round-banner"),
         milestoneFeed: document.getElementById("milestone-feed"),
         resetSaveButton: document.getElementById("reset-save-button"),
-        audioToggle: document.getElementById("audio-toggle")
+        audioToggle: document.getElementById("audio-toggle"),
+        signOutButton: document.getElementById("signout-button")
       };
       this.currentLeaderboardTab = "highestMultiplier";
     }
@@ -70,6 +71,9 @@
       this.el.autoStopBalance.addEventListener("change", () => controller.onAutoSettingsChanged());
       this.el.resetSaveButton.addEventListener("click", () => controller.resetSave());
       this.el.audioToggle.addEventListener("change", () => controller.onAudioToggle(this.el.audioToggle.checked));
+      if (this.el.signOutButton) {
+        this.el.signOutButton.addEventListener("click", () => controller.onSignOut());
+      }
 
       adjustButtons.forEach((btn) => {
         btn.addEventListener("click", () => {

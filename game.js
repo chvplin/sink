@@ -362,6 +362,12 @@
     profile.settings.autoStopBalanceBelow = cfg.stopBalanceBelow;
     saveAll();
   }
+  async function onSignOut() {
+    if (typeof dataService.signOut === "function") {
+      await dataService.signOut();
+    }
+    window.location.href = "auth.html";
+  }
 
   function onLeaderboardTabChange(tab) { ui.renderLeaderboard(buildLeaderboardRows(tab)); }
   function resetSave() {
@@ -482,11 +488,19 @@
     console.log(values.map((v) => `${v.toFixed(2)}x`).join(", "));
   }
 
-  function init() {
+  async function init() {
+    if (typeof dataService.requireAuthUser === "function") {
+      const user = await dataService.requireAuthUser();
+      if (!user) {
+        window.location.href = "auth.html";
+        return;
+      }
+    }
+    profile = dataService.loadPlayerProfile();
     initFairnessSeed();
     applyLoginStreak();
     maybeResetChallenges();
-    ui.bindControls({ placeBet, cashOut, adjustBetInput, setBetInput, onBetInputChange, onAutoSettingsChanged, resetSave, onAudioToggle, onLeaderboardTabChange });
+    ui.bindControls({ placeBet, cashOut, adjustBetInput, setBetInput, onBetInputChange, onAutoSettingsChanged, resetSave, onAudioToggle, onLeaderboardTabChange, onSignOut });
     document.addEventListener("click", (event) => {
       const claimBtn = event.target.closest(".claim-btn");
       if (claimBtn) claimChallenge(claimBtn.dataset.claimId);
@@ -499,6 +513,13 @@
       renderAllPanels();
     });
     renderAllPanels();
+    if (typeof dataService.syncFromBackend === "function") {
+      dataService.syncFromBackend().then((remoteProfile) => {
+        if (!remoteProfile) return;
+        profile = remoteProfile;
+        renderAllPanels();
+      });
+    }
     ui.setBetInputValue(1);
     ui.setCrashPoint(0);
     beginPreRound();
@@ -506,6 +527,6 @@
     requestAnimationFrame(function frame() { tick(); requestAnimationFrame(frame); });
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { init(); });
   else init();
 })();

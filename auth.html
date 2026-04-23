@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submarine Crash - Account</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-card">
+      <h1>Submarine Crash Account</h1>
+      <p>Create an account or sign in to keep your progress, stats, unlocks, and leaderboard identity.</p>
+
+      <div class="tabs">
+        <button id="tab-signin" class="tab active" type="button">Sign In</button>
+        <button id="tab-signup" class="tab" type="button">Sign Up</button>
+      </div>
+
+      <form id="signin-form" class="auth-form">
+        <label>Email <input id="signin-email" type="email" required></label>
+        <label>Password <input id="signin-password" type="password" required minlength="6"></label>
+        <button type="submit" class="primary">Sign In</button>
+      </form>
+
+      <form id="signup-form" class="auth-form hidden">
+        <label>Display Name <input id="signup-display-name" type="text" required minlength="2"></label>
+        <label>Full Name <input id="signup-full-name" type="text"></label>
+        <label>Email <input id="signup-email" type="email" required></label>
+        <label>Password <input id="signup-password" type="password" required minlength="6"></label>
+        <button type="submit" class="primary">Create Account</button>
+      </form>
+
+      <div id="auth-status" class="status"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
