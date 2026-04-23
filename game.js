@@ -5,7 +5,9 @@
     LUCKY_ROUND_PAYOUT_BONUS: 2,
     MILESTONES: [2, 5, 10, 25, 50, 100],
     SHARED_SYNC_MS: 300,
-    MULTIPLIER_RATE_PER_SEC: 0.35
+    MULTIPLIER_BASE_RATE_PER_SEC: 0.33,
+    MULTIPLIER_ACCEL_PER_SEC2: 0.018,
+    MULTIPLIER_MAX_RATE_PER_SEC: 0.72
   };
   const PHASE_RANK = { preRound: 1, active: 2, crashed: 3 };
   const content = window.ProgressionContent;
@@ -89,7 +91,16 @@
     return clamp(Number(point.toFixed(2)), 1, 10000);
   }
   function multiplierFromElapsedMs(ms) {
-    return clamp(1 + ((ms / 1000) * CONFIG.MULTIPLIER_RATE_PER_SEC), 1, 10000);
+    const t = ms / 1000;
+    const base = CONFIG.MULTIPLIER_BASE_RATE_PER_SEC;
+    const accel = CONFIG.MULTIPLIER_ACCEL_PER_SEC2;
+    const maxRate = CONFIG.MULTIPLIER_MAX_RATE_PER_SEC;
+    const tCap = Math.max(0, (maxRate - base) / (2 * accel));
+    const capValue = 1 + (base * tCap) + (accel * tCap * tCap);
+    const value = t <= tCap
+      ? 1 + (base * t) + (accel * t * t)
+      : capValue + ((t - tCap) * maxRate);
+    return clamp(value, 1, 10000);
   }
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
 
