@@ -131,7 +131,11 @@
 
   function refreshHostRole() {
     const me = getCurrentUserId();
-    gameState.isRoundHost = !!(me && gameState.roundHostUserId && me === gameState.roundHostUserId);
+    if (!gameState.roundHostUserId) {
+      gameState.isRoundHost = true;
+      return;
+    }
+    gameState.isRoundHost = !!(me && me === gameState.roundHostUserId);
   }
 
   function applyLoginStreak() {
@@ -407,10 +411,8 @@
     }
   }
 
-  function crashRound({ publish = true, scheduleNextRound = true } = {}) {
-    gameState.phase = "crashed";
-    gameState.didCrash = true;
-    gameState.roundEndMs = Date.now();
+  /** Shared UI + payouts when a round ends at crashPoint (host drives publish/schedule). */
+  function runLocalCrashPresentation() {
     gameState.currentMultiplier = gameState.crashPoint;
     gameState.lastCrash = gameState.crashPoint;
     ui.setCrashPoint(gameState.crashPoint);
@@ -434,10 +436,24 @@
     ui.setLuckyRound(false);
     animations.triggerCrashExplosion();
     updateCashOutButtonState();
+  }
+
+  function crashRound({ publish = true, scheduleNextRound = true } = {}) {
+    gameState.phase = "crashed";
+    gameState.didCrash = true;
+    gameState.roundEndMs = Date.now();
+    runLocalCrashPresentation();
     if (publish) {
       publishRoundState();
     }
     closeRoundAfterCrash(scheduleNextRound);
+  }
+
+  /** Non-host clients: apply the same crash outcome when the host’s published state reaches us. */
+  function mirrorCrashFromSharedState(prevPhase, sharedRoundId) {
+    if (prevPhase !== "active" || sharedRoundId !== gameState.roundId) return;
+    handleRoundMetrics();
+    runLocalCrashPresentation();
   }
 
   function placeBet() {
@@ -691,6 +707,10 @@
       gameState.roundStartMs = gameState.countdownStartMs + gameState.countdownDurationMs;
     }
     ui.setLuckyRound(gameState.isLuckyRound);
+
+    if (gameState.phase === "crashed" && prevPhase === "active" && state.roundId === prevRoundId) {
+      mirrorCrashFromSharedState(prevPhase, state.roundId);
+    }
   }
 
   async function syncSharedRoundState(force = false) {
@@ -891,22 +911,24 @@
       const elapsed = now - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
       ui.setCountdown(remaining);
-      if (elapsed >= gameState.countdownDurationMs) {
+      if (gameState.isRoundHost && elapsed >= gameState.countdownDurationMs) {
         beginRound();
       }
     } else if (gameState.phase === "active") {
       const elapsed = now - gameState.roundStartMs;
-      gameState.currentMultiplier = Number(multiplierFromElapsedMs(elapsed).toFixed(2));
+      const rawMultiplier = multiplierFromElapsedMs(elapsed);
+      const capped = Math.min(rawMultiplier, gameState.crashPoint);
+      gameState.currentMultiplier = Number(capped.toFixed(2));
       if (didPlayerParticipateInRound()) {
         CONFIG.MILESTONES.forEach((m) => {
           if (Math.abs(gameState.currentMultiplier - m) < 0.015) ui.showMilestone(`Milestone ${m.toFixed(0)}x reached!`);
         });
       }
-      if (gameState.currentMultiplier >= gameState.crashPoint) {
+      if (gameState.isRoundHost && rawMultiplier >= gameState.crashPoint) {
         handleRoundMetrics();
         crashRound({
-          publish: gameState.isRoundHost,
-          scheduleNextRound: gameState.isRoundHost
+          publish: true,
+          scheduleNextRound: true
         });
       } else {
         ui.setBetInfo(gameState.activeBet, gameState.activeBet > 0 ? gameState.activeBet * gameState.currentMultiplier : 0);
