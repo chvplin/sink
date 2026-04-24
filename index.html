@@ -58,8 +58,8 @@
       </div>
     </header>
 
-    <div id="hud-chat-drawer" class="hud-chat-drawer">
-      <div class="hud-chat-drawer__panel">
+    <div id="hud-chat-drawer" class="hud-chat-drawer hud-chat-drawer--collapsed">
+      <div class="hud-chat-drawer__panel" id="hud-chat-drawer-panel" aria-hidden="true">
         <aside class="hud-chat" id="hud-chat" aria-label="Fleet chat">
           <div class="hud-chat__header">Fleet chat</div>
           <div id="hud-chat-messages" class="hud-chat__messages"></div>
@@ -69,7 +69,8 @@
           </form>
         </aside>
       </div>
-      <button type="button" id="hud-chat-drawer-tab" class="hud-chat-drawer__tab" aria-expanded="true" aria-controls="hud-chat" title="Show or hide fleet chat">
+      <button type="button" id="hud-chat-drawer-tab" class="hud-chat-drawer__tab" aria-expanded="false" aria-controls="hud-chat-drawer-panel" title="Show or hide fleet chat">
+        <span class="hud-chat-drawer__chev" aria-hidden="true">⟩</span>
         <span class="hud-chat-drawer__tab-label" aria-hidden="true">Chat</span>
       </button>
     </div>

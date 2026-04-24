@@ -81,11 +81,13 @@
     }
 
     toggleHudChatDrawer() {
-      if (!this.el.hudChatDrawer || !document.body.classList.contains("mobile-ui")) return;
+      if (!this.el.hudChatDrawer || !this.el.hudChatDrawerTab) return;
       const collapsed = this.el.hudChatDrawer.classList.toggle("hud-chat-drawer--collapsed");
       this.el.hudChatDrawerTab.setAttribute("aria-expanded", collapsed ? "false" : "true");
       const panel = this.el.hudChatDrawer.querySelector(".hud-chat-drawer__panel");
       if (panel) panel.setAttribute("aria-hidden", collapsed ? "true" : "false");
+      const chev = this.el.hudChatDrawerTab.querySelector(".hud-chat-drawer__chev");
+      if (chev) chev.textContent = collapsed ? "⟩" : "⟨";
       if (!collapsed && this.el.hudChatInput) {
         requestAnimationFrame(() => this.el.hudChatInput.focus());
       }
@@ -93,17 +95,12 @@
 
     syncHudChatDrawerLayout() {
       if (!this.el.hudChatDrawer || !this.el.hudChatDrawerTab) return;
-      const narrow = document.body.classList.contains("mobile-ui");
       const panel = this.el.hudChatDrawer.querySelector(".hud-chat-drawer__panel");
-      if (narrow) {
-        this.el.hudChatDrawer.classList.add("hud-chat-drawer--collapsed");
-        this.el.hudChatDrawerTab.setAttribute("aria-expanded", "false");
-        if (panel) panel.setAttribute("aria-hidden", "true");
-      } else {
-        this.el.hudChatDrawer.classList.remove("hud-chat-drawer--collapsed");
-        this.el.hudChatDrawerTab.setAttribute("aria-expanded", "true");
-        if (panel) panel.removeAttribute("aria-hidden");
-      }
+      const collapsed = this.el.hudChatDrawer.classList.contains("hud-chat-drawer--collapsed");
+      this.el.hudChatDrawerTab.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      if (panel) panel.setAttribute("aria-hidden", collapsed ? "true" : "false");
+      const chev = this.el.hudChatDrawerTab.querySelector(".hud-chat-drawer__chev");
+      if (chev) chev.textContent = collapsed ? "⟩" : "⟨";
     }
 
     setupResponsiveMode() {
