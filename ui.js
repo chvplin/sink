@@ -46,6 +46,7 @@
         dailyStreakDisplay: document.getElementById("daily-streak-display"),
         luckyBanner: document.getElementById("lucky-round-banner"),
         milestoneFeed: document.getElementById("milestone-feed"),
+        fleetWagerTotal: document.getElementById("fleet-wager-total"),
         audioToggle: document.getElementById("audio-toggle"),
         signOutButton: document.getElementById("signout-button"),
         crewAidButton: document.getElementById("crew-aid-button"),
@@ -579,15 +580,20 @@
     }
 
     renderLiveBets(entries) {
+      const list = Array.isArray(entries) ? entries : [];
+      const totalWagered = list.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      if (this.el.fleetWagerTotal) {
+        this.el.fleetWagerTotal.textContent = this.formatMoney(totalWagered);
+      }
       if (!this.el.liveBetsList) return;
       this.el.liveBetsList.innerHTML = "";
-      if (!entries || entries.length === 0) {
+      if (list.length === 0) {
         const li = document.createElement("li");
         li.textContent = "No active bets";
         this.el.liveBetsList.appendChild(li);
         return;
       }
-      entries.forEach((entry) => {
+      list.forEach((entry) => {
         const li = document.createElement("li");
         li.textContent = `${entry.name}: ${this.formatMoney(entry.amount)}`;
         this.el.liveBetsList.appendChild(li);

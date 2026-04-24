@@ -60,15 +60,10 @@
     seenJoinKeys: new Set(),
     joinPollPrimed: false,
     stallRecoveryAttemptForRound: "",
-    lastVisibilityResyncAt: 0,
-    /** Aligns local clock to host timeline using payload.publishedAt (fixes skewed "next round in Xs" for joiners). */
-    hostTimeOffsetMs: 0
+    lastVisibilityResyncAt: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
-  function roundNowMs() {
-    return Date.now() + (gameState.hostTimeOffsetMs || 0);
-  }
   function saveAll() { dataService.savePlayerProfile(profile); }
   function cyrb128(str) {
     let h1 = 1779033703; let h2 = 3144134277; let h3 = 1013904242; let h4 = 2773480762;
@@ -283,7 +278,6 @@
 
   function beginPreRound() {
     gameState.stallRecoveryAttemptForRound = "";
-    gameState.hostTimeOffsetMs = 0;
     const roundRng = createRoundRng(gameState.nonce + 1);
     gameState.phase = "preRound";
     gameState.roundMode = "normal";
@@ -324,7 +318,7 @@
     if (gameState.phase !== "preRound") return;
     gameState.phase = "active";
     const scheduledStart = gameState.countdownStartMs + gameState.countdownDurationMs;
-    const nowMs = roundNowMs();
+    const nowMs = Date.now();
     gameState.roundStartMs = scheduledStart > nowMs + 2000 ? nowMs : Math.min(Math.max(scheduledStart, nowMs - 80), nowMs + 2000);
     const pending = gameState.pendingRoundMode || "normal";
     gameState.pendingRoundMode = "normal";
@@ -416,7 +410,7 @@
   function crashRound({ publish = true, scheduleNextRound = true } = {}) {
     gameState.phase = "crashed";
     gameState.didCrash = true;
-    gameState.roundEndMs = roundNowMs();
+    gameState.roundEndMs = Date.now();
     gameState.currentMultiplier = gameState.crashPoint;
     gameState.lastCrash = gameState.crashPoint;
     ui.setCrashPoint(gameState.crashPoint);
@@ -624,7 +618,10 @@
       if (incomingRank < localRank) return;
     }
 
+    const prevRoundId = gameState.roundId;
     const prevPhase = gameState.phase;
+    const reanchorTimes = state.roundId !== prevRoundId || state.phase !== prevPhase;
+
     gameState.lastSharedStateAt = publishedAt || Date.now();
     gameState.roundId = state.roundId;
     gameState.roundHostUserId = state.publisherUserId || gameState.roundHostUserId || "";
@@ -633,21 +630,46 @@
     gameState.nonce = Number(state.nonce || gameState.nonce);
     gameState.crashPoint = Number(state.crashPoint || gameState.crashPoint);
     gameState.isLuckyRound = !!state.isLuckyRound;
-    gameState.countdownStartMs = Number(
-      state.countdownStartMs != null && state.countdownStartMs !== ""
-        ? state.countdownStartMs
-        : (gameState.countdownStartMs || Date.now())
-    );
-    gameState.countdownDurationMs = Number(
+
+    const pub = publishedAt || Date.now();
+    const dur = Number(
       state.countdownDurationMs != null && state.countdownDurationMs !== ""
         ? state.countdownDurationMs
         : 10000
     );
-    if (publishedAt) {
-      gameState.hostTimeOffsetMs = clamp(publishedAt - Date.now(), -180000, 180000);
+    gameState.countdownDurationMs = dur;
+
+    const rawCountdownStart = Number(
+      state.countdownStartMs != null && state.countdownStartMs !== ""
+        ? state.countdownStartMs
+        : Date.now()
+    );
+    const rawRoundStart = Number(state.roundStartMs || 0);
+    const rawRoundEnd = Number(state.roundEndMs || 0);
+
+    if (reanchorTimes) {
+      if (gameState.phase === "preRound" && rawCountdownStart) {
+        const hostElapsedPre = clamp(pub - rawCountdownStart, 0, dur);
+        gameState.countdownStartMs = Date.now() - hostElapsedPre;
+      } else if (gameState.phase === "preRound") {
+        gameState.countdownStartMs = Date.now();
+      }
+
+      if (gameState.phase === "active" && rawRoundStart > 0) {
+        const hostElapsedActive = clamp(pub - rawRoundStart, 0, 900000);
+        gameState.roundStartMs = Date.now() - hostElapsedActive;
+      } else {
+        gameState.roundStartMs = rawRoundStart;
+      }
+
+      if (gameState.phase === "crashed" && rawRoundEnd > 0) {
+        const hostElapsedCrash = clamp(pub - rawRoundEnd, 0, 900000);
+        gameState.roundEndMs = Date.now() - hostElapsedCrash;
+      } else {
+        gameState.roundEndMs = rawRoundEnd;
+      }
     }
-    gameState.roundStartMs = Number(state.roundStartMs || 0);
-    gameState.roundEndMs = Number(state.roundEndMs || 0);
+
     gameState.didCrash = gameState.phase === "crashed";
     if (gameState.phase === "preRound") {
       gameState.activeBet = 0;
@@ -690,8 +712,7 @@
 
   function maybeRecoverStalledRound() {
     if (gameState.phase !== "crashed" || !gameState.roundEndMs) return;
-    const nowR = roundNowMs();
-    if (nowR - gameState.roundEndMs < 5200) return;
+    if (Date.now() - gameState.roundEndMs < 5200) return;
     const rid = gameState.roundId;
     if (gameState.stallRecoveryAttemptForRound === rid) return;
     gameState.stallRecoveryAttemptForRound = rid;
@@ -866,16 +887,15 @@
     syncLiveBets();
     pollSocialLayer(now);
     maybeRecoverStalledRound();
-    const nowR = roundNowMs();
     if (gameState.phase === "preRound") {
-      const elapsed = nowR - gameState.countdownStartMs;
+      const elapsed = now - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
       ui.setCountdown(remaining);
       if (elapsed >= gameState.countdownDurationMs) {
         beginRound();
       }
     } else if (gameState.phase === "active") {
-      const elapsed = nowR - gameState.roundStartMs;
+      const elapsed = now - gameState.roundStartMs;
       gameState.currentMultiplier = Number(multiplierFromElapsedMs(elapsed).toFixed(2));
       if (didPlayerParticipateInRound()) {
         CONFIG.MILESTONES.forEach((m) => {
@@ -893,7 +913,7 @@
         evaluateAutoCashout();
       }
     } else if (gameState.phase === "crashed") {
-      ui.setCountdown(Math.max(0, (2400 - (nowR - gameState.roundEndMs)) / 1000));
+      ui.setCountdown(Math.max(0, (2400 - (now - gameState.roundEndMs)) / 1000));
       evaluateAutoStopConditions();
     }
     updateCashOutButtonState();
