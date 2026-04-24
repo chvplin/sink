@@ -54,7 +54,13 @@
     lastSharedStateAt: 0,
     lastSharedSyncAt: 0,
     lastLiveBetsSyncAt: 0,
-    lastChallengeRealtimeCheckAt: 0
+    lastChallengeRealtimeCheckAt: 0,
+    lastChatPollAt: 0,
+    lastJoinPollAt: 0,
+    seenJoinKeys: new Set(),
+    joinPollPrimed: false,
+    stallRecoveryAttemptForRound: "",
+    lastVisibilityResyncAt: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
@@ -271,6 +277,7 @@
   }
 
   function beginPreRound() {
+    gameState.stallRecoveryAttemptForRound = "";
     const roundRng = createRoundRng(gameState.nonce + 1);
     gameState.phase = "preRound";
     gameState.roundMode = "normal";
@@ -310,7 +317,9 @@
   function beginRound() {
     if (gameState.phase !== "preRound") return;
     gameState.phase = "active";
-    gameState.roundStartMs = Date.now();
+    const scheduledStart = gameState.countdownStartMs + gameState.countdownDurationMs;
+    const nowMs = Date.now();
+    gameState.roundStartMs = scheduledStart > nowMs + 2000 ? nowMs : Math.min(Math.max(scheduledStart, nowMs - 80), nowMs + 2000);
     const pending = gameState.pendingRoundMode || "normal";
     gameState.pendingRoundMode = "normal";
     gameState.roundMode = pending === "free_play" ? "free_play" : (pending === "second_chance" ? "second_chance" : "normal");
@@ -609,6 +618,7 @@
       if (incomingRank < localRank) return;
     }
 
+    const prevPhase = gameState.phase;
     gameState.lastSharedStateAt = publishedAt || Date.now();
     gameState.roundId = state.roundId;
     gameState.roundHostUserId = state.publisherUserId || gameState.roundHostUserId || "";
@@ -625,6 +635,21 @@
     if (gameState.phase === "preRound") {
       gameState.activeBet = 0;
       gameState.hasCashedOut = false;
+    }
+    if (gameState.phase === "active" && prevPhase === "preRound" && gameState.activeBet === 0 && gameState.queuedBet > 0) {
+      gameState.activeBet = gameState.queuedBet;
+      gameState.queuedBet = 0;
+      gameState.roundParticipation.playerJoinedRound = gameState.activeBet > 0;
+      gameState.roundParticipation.betAmount = gameState.activeBet;
+      if (gameState.roundStartMs <= 0) {
+        gameState.roundStartMs = gameState.countdownStartMs + gameState.countdownDurationMs;
+      }
+      ui.updateRoundModeBanner(gameState.roundMode);
+      ui.setPhase(gameState.activeBet > 0 ? "Dive in progress! Cash out before implosion." : "Spectating this dive");
+      ui.setBetInfo(gameState.activeBet, gameState.activeBet > 0 ? gameState.activeBet * gameState.currentMultiplier : 0);
+    }
+    if (gameState.phase === "active" && (!gameState.roundStartMs || gameState.roundStartMs <= 0)) {
+      gameState.roundStartMs = gameState.countdownStartMs + gameState.countdownDurationMs;
     }
     ui.setLuckyRound(gameState.isLuckyRound);
   }
@@ -644,6 +669,60 @@
       return;
     }
     applyLiveRoundState(latest);
+  }
+
+  function maybeRecoverStalledRound(now) {
+    if (gameState.phase !== "crashed" || !gameState.roundEndMs) return;
+    if (now - gameState.roundEndMs < 5200) return;
+    const rid = gameState.roundId;
+    if (gameState.stallRecoveryAttemptForRound === rid) return;
+    gameState.stallRecoveryAttemptForRound = rid;
+    syncSharedRoundState(true).then(() => {
+      if (gameState.phase !== "crashed" || gameState.roundId !== rid) return;
+      gameState.roundHostUserId = getCurrentUserId();
+      refreshHostRole();
+      beginPreRound();
+    });
+  }
+
+  async function pollSocialLayer(now) {
+    if (!dataService.supabase || !dataService.user) return;
+    if (now - gameState.lastChatPollAt > 1800) {
+      gameState.lastChatPollAt = now;
+      if (typeof dataService.fetchRecentChatMessages === "function") {
+        const msgs = await dataService.fetchRecentChatMessages(40);
+        ui.renderChatMessages(msgs);
+      }
+    }
+    if (now - gameState.lastJoinPollAt > 2200) {
+      gameState.lastJoinPollAt = now;
+      if (typeof dataService.fetchRecentPlayerJoins === "function") {
+        const joins = await dataService.fetchRecentPlayerJoins(20);
+        const me = dataService.user.id;
+        if (!gameState.joinPollPrimed) {
+          gameState.joinPollPrimed = true;
+          joins.forEach((j) => {
+            if (j.userId && j.createdAt) gameState.seenJoinKeys.add(`${j.userId}|${j.createdAt}`);
+          });
+        } else {
+          joins.forEach((j) => {
+            const key = j.userId && j.createdAt ? `${j.userId}|${j.createdAt}` : "";
+            if (!key || gameState.seenJoinKeys.has(key)) return;
+            gameState.seenJoinKeys.add(key);
+            if (!j.userId || j.userId === me) return;
+            ui.showPlayerJoinBanner(j.displayName || "Someone");
+          });
+        }
+      }
+    }
+  }
+
+  function onChatSubmit(text) {
+    if (!text || typeof dataService.sendChatMessage !== "function") return;
+    dataService.sendChatMessage(text).then((ok) => {
+      if (!ok) ui.showToast("Chat", "Message could not be sent.");
+      else gameState.lastChatPollAt = 0;
+    });
   }
 
   function publishLiveBet(status) {
@@ -709,15 +788,6 @@
   }
 
   function onLeaderboardTabChange(tab) { refreshLeaderboard(tab); }
-  function resetSave() {
-    recoveryHubUserClosed = false;
-    profile = window.GameDataService.buildDefaultProfile();
-    applyLoginStreak();
-    maybeResetChallenges();
-    renderAllPanels();
-    beginPreRound();
-    saveAll();
-  }
 
   function claimChallenge(id) {
     const all = [...profile.challenges.daily, ...profile.challenges.weekly];
@@ -776,11 +846,13 @@
     maybeRunRealtimeChallengeReset(now);
     syncSharedRoundState();
     syncLiveBets();
+    pollSocialLayer(now);
+    maybeRecoverStalledRound(now);
     if (gameState.phase === "preRound") {
       const elapsed = now - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
       ui.setCountdown(remaining);
-      if (elapsed >= gameState.countdownDurationMs && gameState.isRoundHost) {
+      if (elapsed >= gameState.countdownDurationMs) {
         beginRound();
       }
     } else if (gameState.phase === "active") {
@@ -859,11 +931,11 @@
       setMaxBet,
       onBetInputChange,
       onAutoSettingsChanged,
-      resetSave,
       onAudioToggle,
       onLeaderboardTabChange,
       onSignOut,
-      openRecoveryHub
+      openRecoveryHub,
+      onChatSubmit
     });
     ui.bindRecoveryHub(onRecoveryAction);
     document.addEventListener("click", (event) => {
@@ -894,6 +966,17 @@
     } else {
       syncLiveBets(true);
     }
+    if (typeof dataService.announcePlayerSession === "function") {
+      await dataService.announcePlayerSession();
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      const t = Date.now();
+      if (t - gameState.lastVisibilityResyncAt < 800) return;
+      gameState.lastVisibilityResyncAt = t;
+      gameState.lastSharedSyncAt = 0;
+      syncSharedRoundState(true);
+    });
     if (CONFIG.DEV_TOOLS_ENABLED) window.runCrashDistributionTest = runCrashDistributionTest;
     requestAnimationFrame(function frame() { tick(); requestAnimationFrame(frame); });
   }

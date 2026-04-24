@@ -46,7 +46,6 @@
         dailyStreakDisplay: document.getElementById("daily-streak-display"),
         luckyBanner: document.getElementById("lucky-round-banner"),
         milestoneFeed: document.getElementById("milestone-feed"),
-        resetSaveButton: document.getElementById("reset-save-button"),
         audioToggle: document.getElementById("audio-toggle"),
         signOutButton: document.getElementById("signout-button"),
         crewAidButton: document.getElementById("crew-aid-button"),
@@ -60,7 +59,11 @@
         recoveryDailyLadder: document.getElementById("recovery-daily-ladder"),
         recoverySecondMeta: document.getElementById("recovery-second-meta"),
         recoveryFreeMeta: document.getElementById("recovery-free-meta"),
-        recoveryLoanMeta: document.getElementById("recovery-loan-meta")
+        recoveryLoanMeta: document.getElementById("recovery-loan-meta"),
+        playerJoinBanner: document.getElementById("player-join-banner"),
+        hudChatMessages: document.getElementById("hud-chat-messages"),
+        hudChatForm: document.getElementById("hud-chat-form"),
+        hudChatInput: document.getElementById("hud-chat-input")
       };
       this.currentLeaderboardTab = "highestMultiplier";
       this.setupResponsiveMode();
@@ -102,7 +105,6 @@
       this.el.autoStopWins.addEventListener("change", () => controller.onAutoSettingsChanged());
       this.el.autoStopLosses.addEventListener("change", () => controller.onAutoSettingsChanged());
       this.el.autoStopBalance.addEventListener("change", () => controller.onAutoSettingsChanged());
-      this.el.resetSaveButton.addEventListener("click", () => controller.resetSave());
       this.el.audioToggle.addEventListener("change", () => controller.onAudioToggle(this.el.audioToggle.checked));
       if (this.el.signOutButton) {
         this.el.signOutButton.addEventListener("click", () => controller.onSignOut());
@@ -123,6 +125,15 @@
           else controller.setBetInput(Number(btn.dataset.preset));
         });
       });
+
+      if (this.el.hudChatForm && controller.onChatSubmit) {
+        this.el.hudChatForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const raw = (this.el.hudChatInput && this.el.hudChatInput.value) || "";
+          controller.onChatSubmit(raw.trim());
+          if (this.el.hudChatInput) this.el.hudChatInput.value = "";
+        });
+      }
 
       this.el.tabs.forEach((tabBtn) => {
         tabBtn.addEventListener("click", () => this.switchTab(tabBtn.dataset.tab));
@@ -165,9 +176,35 @@
     }
 
     setDepth(depthNorm) {
+      if (!this.el.depth || !this.el.depthFill) return;
       const depthMeters = Math.floor(depthNorm * 8200);
       this.el.depth.textContent = `${depthMeters.toLocaleString()} m`;
       this.el.depthFill.style.width = `${(depthNorm * 100).toFixed(1)}%`;
+    }
+
+    showPlayerJoinBanner(displayName) {
+      if (!this.el.playerJoinBanner) return;
+      const safe = String(displayName || "Someone").replace(/</g, "").slice(0, 48);
+      this.el.playerJoinBanner.textContent = `${safe} is playing!`;
+      this.el.playerJoinBanner.classList.remove("player-join-banner--dismissed");
+      this.el.playerJoinBanner.classList.add("player-join-banner--visible");
+      clearTimeout(this._joinBannerTimer);
+      this._joinBannerTimer = setTimeout(() => {
+        this.el.playerJoinBanner.classList.remove("player-join-banner--visible");
+        this.el.playerJoinBanner.classList.add("player-join-banner--dismissed");
+      }, 2000);
+    }
+
+    renderChatMessages(rows) {
+      if (!this.el.hudChatMessages || !Array.isArray(rows)) return;
+      this.el.hudChatMessages.innerHTML = rows
+        .map((r) => {
+          const name = String(r.name || "Player").replace(/</g, "").slice(0, 32);
+          const msg = String(r.message || "").replace(/</g, "").slice(0, 200);
+          return `<div class="hud-chat__line"><span class="hud-chat__who">${name}</span> ${msg}</div>`;
+        })
+        .join("");
+      this.el.hudChatMessages.scrollTop = this.el.hudChatMessages.scrollHeight;
     }
 
     setCountdown(seconds) {

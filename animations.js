@@ -211,11 +211,12 @@
       const lightTop = 68 - d * 58;
       const lightBottom = 36 - d * 32;
 
-      const grad = this.ctx.createLinearGradient(0, 0, 0, this.height);
+      const scroll = Math.abs(this.worldScrollY || 0);
+      const pad = scroll + this.height * 0.72 + 160;
+      const grad = this.ctx.createLinearGradient(0, -pad, 0, this.height + pad);
       grad.addColorStop(0, `hsl(${topH}, ${sat}%, ${Math.max(3, lightTop)}%)`);
       grad.addColorStop(1, `hsl(${topH - 18}, ${sat - 18}%, ${Math.max(1, lightBottom)}%)`);
       this.ctx.fillStyle = grad;
-      const pad = Math.abs(this.worldScrollY || 0) + 100;
       this.ctx.fillRect(-pad, -pad, this.width + pad * 2, this.height + pad * 2);
 
       if (this.scene.isLuckyRound) {
@@ -338,12 +339,14 @@
     }
 
     drawWaterGloss() {
-      const grad = this.ctx.createLinearGradient(0, 0, this.width, this.height * 0.5);
+      const scroll = Math.abs(this.worldScrollY || 0);
+      const pad = scroll + this.height * 0.5 + 80;
+      const grad = this.ctx.createLinearGradient(0, -pad, this.width, this.height * 0.5 + pad);
       grad.addColorStop(0, "rgba(255,255,255,0.12)");
       grad.addColorStop(0.5, "rgba(255,255,255,0.03)");
       grad.addColorStop(1, "rgba(255,255,255,0.0)");
       this.ctx.fillStyle = grad;
-      this.ctx.fillRect(0, 0, this.width, this.height);
+      this.ctx.fillRect(-pad, -pad, this.width + pad * 2, this.height + pad * 2);
     }
 
     drawSubmarine() {

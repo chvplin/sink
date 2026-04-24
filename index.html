@@ -16,6 +16,15 @@
     <div class="surface-waves"></div>
     <div class="depth-tint" id="depth-tint"></div>
     <div id="lucky-round-banner" class="lucky-round-banner hidden">Lucky Round! 2x payout bonus active</div>
+    <div id="player-join-banner" class="player-join-banner player-join-banner--dismissed" role="status" aria-live="polite"></div>
+
+    <div class="depth-bar-top" id="depth-bar-top" aria-label="Dive depth">
+      <span class="depth-bar-top__label">Depth</span>
+      <div class="depth-bar-top__meter">
+        <div id="depth-meter-fill" class="depth-bar-top__fill"></div>
+      </div>
+      <span id="depth-display" class="depth-bar-top__readout">0 m</span>
+    </div>
 
     <header class="game-header top-bar">
       <div class="game-header__brand brand">
@@ -40,6 +49,14 @@
             <span id="debt-amount" class="debt-amount">$0</span>
             <div class="debt-bar"><div id="debt-bar-fill" class="debt-bar-fill"></div></div>
           </div>
+          <aside class="hud-chat" id="hud-chat" aria-label="Fleet chat">
+            <div class="hud-chat__header">Fleet chat</div>
+            <div id="hud-chat-messages" class="hud-chat__messages"></div>
+            <form id="hud-chat-form" class="hud-chat__form" autocomplete="off">
+              <input id="hud-chat-input" class="hud-chat__input" type="text" maxlength="200" placeholder="Message…" enterkeyhint="send" inputmode="text" />
+              <button type="submit" class="hud-chat__send">Send</button>
+            </form>
+          </aside>
         </div>
       </div>
     </header>
@@ -72,11 +89,6 @@
                 <div class="multiplier-label">Multiplier</div>
                 <div id="round-mode-banner" class="round-mode-banner hidden" role="status"></div>
                 <div id="multiplier-display" class="multiplier-value">1.00x</div>
-                <div class="depth-caption">Depth</div>
-                <div class="depth-row">
-                  <div class="depth-meter"><div id="depth-meter-fill"></div></div>
-                  <span id="depth-display" class="depth-readout">0 m</span>
-                </div>
                 <div class="round-meta">
                   <span id="countdown-display">Next round in --</span>
                   <span id="crash-display">Last crash: --</span>
@@ -195,8 +207,6 @@
         <div class="settings-list">
           <label class="toggle"><input id="audio-toggle" type="checkbox" checked><span>Enable Audio Hooks</span></label>
           <button id="signout-button" class="action-btn" type="button">Sign Out</button>
-          <button id="reset-save-button" class="action-btn danger-btn" type="button">Reset Save</button>
-          <small>Reset returns your profile to a fresh $1,000 start.</small>
         </div>
       </section>
     </main>

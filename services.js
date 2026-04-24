@@ -336,6 +336,105 @@
       }
     }
 
+    async sendChatMessage(text) {
+      if (!this.supabase || !this.user) return false;
+      const trimmed = String(text || "").trim();
+      if (!trimmed || trimmed.length > 200) return false;
+      try {
+        const { error } = await this.supabase.from("leaderboard_scores").insert({
+          user_id: this.user.id,
+          player_id: this.playerId,
+          metric: "live_chat_message",
+          value: Date.now() % 1e9,
+          payload: {
+            message: trimmed,
+            displayName: this.getCurrentDisplayName(),
+            userId: this.user.id,
+            ts: Date.now()
+          }
+        });
+        if (error) {
+          console.warn("Chat send failed.", error);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.warn("Chat send error.", error);
+        return false;
+      }
+    }
+
+    async fetchRecentChatMessages(limit = 40) {
+      if (!this.supabase) return [];
+      try {
+        const { data, error } = await this.supabase
+          .from("leaderboard_scores")
+          .select("payload, created_at")
+          .eq("metric", "live_chat_message")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (error || !Array.isArray(data)) return [];
+        return data
+          .map((row) => ({
+            name: row.payload?.displayName || "Player",
+            message: row.payload?.message || "",
+            userId: row.payload?.userId || "",
+            createdAt: row.created_at
+          }))
+          .filter((m) => m.message)
+          .reverse();
+      } catch (error) {
+        console.warn("Chat fetch error.", error);
+        return [];
+      }
+    }
+
+    async announcePlayerSession() {
+      if (!this.supabase || !this.user) return false;
+      try {
+        const { error } = await this.supabase.from("leaderboard_scores").insert({
+          user_id: this.user.id,
+          player_id: this.playerId,
+          metric: "live_player_join",
+          value: Date.now() % 1e9,
+          payload: {
+            displayName: this.getCurrentDisplayName(),
+            userId: this.user.id,
+            ts: Date.now()
+          }
+        });
+        if (error) {
+          console.warn("Join announce failed.", error);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.warn("Join announce error.", error);
+        return false;
+      }
+    }
+
+    async fetchRecentPlayerJoins(limit = 25) {
+      if (!this.supabase) return [];
+      try {
+        const { data, error } = await this.supabase
+          .from("leaderboard_scores")
+          .select("payload, created_at")
+          .eq("metric", "live_player_join")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (error || !Array.isArray(data)) return [];
+        return data.map((row) => ({
+          displayName: row.payload?.displayName || "Player",
+          userId: row.payload?.userId || "",
+          createdAt: row.created_at
+        }));
+      } catch (error) {
+        console.warn("Join fetch error.", error);
+        return [];
+      }
+    }
+
     async fetchLiveBets(roundId) {
       if (!this.supabase || !roundId) return [];
       try {

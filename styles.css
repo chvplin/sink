@@ -601,19 +601,39 @@ html, body {
   padding: 4px 6px;
 }
 .mobile-ui .toast-root {
-  right: 6px;
-  bottom: 44px;
+  left: 8px;
+  right: 8px;
+  width: auto;
+  max-width: none;
+  bottom: calc(var(--dock-h) + var(--fairness-h) + 10px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  z-index: 60;
+  pointer-events: none;
+}
+.mobile-ui .toast-root .toast {
+  pointer-events: auto;
 }
 .mobile-ui .toast {
   min-width: 0;
-  max-width: min(280px, calc(100vw - 16px));
-  padding: 7px 9px;
-  font-size: 0.78rem;
+  max-width: none;
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  word-break: break-word;
+  -webkit-tap-highlight-color: transparent;
 }
 .mobile-ui .lucky-round-banner {
-  top: 44px;
-  padding: 5px 10px;
+  top: calc(env(safe-area-inset-top, 0px) + 118px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
   font-size: 0.72rem;
+  max-width: calc(100vw - 20px);
+  text-align: center;
 }
 
 @media (max-width: 560px) {
@@ -651,5 +671,9 @@ html, body {
 }
 .mobile-ui .bank {
   min-width: 0;
-  max-width: 52vw;
+}
+
+/* Header HUD bank spans full width on phone (chat lives here); do not cap at 52vw */
+.mobile-ui .bank.bank--hud {
+  max-width: 100%;
 }
