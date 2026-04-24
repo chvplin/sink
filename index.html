@@ -49,14 +49,21 @@
             <span id="debt-amount" class="debt-amount">$0</span>
             <div class="debt-bar"><div id="debt-bar-fill" class="debt-bar-fill"></div></div>
           </div>
-          <aside class="hud-chat" id="hud-chat" aria-label="Fleet chat">
-            <div class="hud-chat__header">Fleet chat</div>
-            <div id="hud-chat-messages" class="hud-chat__messages"></div>
-            <form id="hud-chat-form" class="hud-chat__form" autocomplete="off">
-              <input id="hud-chat-input" class="hud-chat__input" type="text" maxlength="200" placeholder="Message…" enterkeyhint="send" inputmode="text" />
-              <button type="submit" class="hud-chat__send">Send</button>
-            </form>
-          </aside>
+        </div>
+        <div id="hud-chat-drawer" class="hud-chat-drawer">
+          <div class="hud-chat-drawer__panel">
+            <aside class="hud-chat" id="hud-chat" aria-label="Fleet chat">
+              <div class="hud-chat__header">Fleet chat</div>
+              <div id="hud-chat-messages" class="hud-chat__messages"></div>
+              <form id="hud-chat-form" class="hud-chat__form" autocomplete="off">
+                <input id="hud-chat-input" class="hud-chat__input" type="text" maxlength="200" placeholder="Message…" enterkeyhint="send" inputmode="text" />
+                <button type="submit" class="hud-chat__send">Send</button>
+              </form>
+            </aside>
+          </div>
+          <button type="button" id="hud-chat-drawer-tab" class="hud-chat-drawer__tab" aria-expanded="true" aria-controls="hud-chat" title="Show or hide fleet chat">
+            <span class="hud-chat-drawer__tab-label" aria-hidden="true">Chat</span>
+          </button>
         </div>
       </div>
     </header>

@@ -63,10 +63,46 @@
         playerJoinBanner: document.getElementById("player-join-banner"),
         hudChatMessages: document.getElementById("hud-chat-messages"),
         hudChatForm: document.getElementById("hud-chat-form"),
-        hudChatInput: document.getElementById("hud-chat-input")
+        hudChatInput: document.getElementById("hud-chat-input"),
+        hudChatDrawer: document.getElementById("hud-chat-drawer"),
+        hudChatDrawerTab: document.getElementById("hud-chat-drawer-tab")
       };
       this.currentLeaderboardTab = "highestMultiplier";
+      this._hudChatTabBound = false;
       this.setupResponsiveMode();
+      this.bindHudChatDrawerTab();
+    }
+
+    bindHudChatDrawerTab() {
+      if (!this.el.hudChatDrawerTab || this._hudChatTabBound) return;
+      this._hudChatTabBound = true;
+      this.el.hudChatDrawerTab.addEventListener("click", () => this.toggleHudChatDrawer());
+    }
+
+    toggleHudChatDrawer() {
+      if (!this.el.hudChatDrawer || !document.body.classList.contains("mobile-ui")) return;
+      const collapsed = this.el.hudChatDrawer.classList.toggle("hud-chat-drawer--collapsed");
+      this.el.hudChatDrawerTab.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      const panel = this.el.hudChatDrawer.querySelector(".hud-chat-drawer__panel");
+      if (panel) panel.setAttribute("aria-hidden", collapsed ? "true" : "false");
+      if (!collapsed && this.el.hudChatInput) {
+        requestAnimationFrame(() => this.el.hudChatInput.focus());
+      }
+    }
+
+    syncHudChatDrawerLayout() {
+      if (!this.el.hudChatDrawer || !this.el.hudChatDrawerTab) return;
+      const narrow = document.body.classList.contains("mobile-ui");
+      const panel = this.el.hudChatDrawer.querySelector(".hud-chat-drawer__panel");
+      if (narrow) {
+        this.el.hudChatDrawer.classList.add("hud-chat-drawer--collapsed");
+        this.el.hudChatDrawerTab.setAttribute("aria-expanded", "false");
+        if (panel) panel.setAttribute("aria-hidden", "true");
+      } else {
+        this.el.hudChatDrawer.classList.remove("hud-chat-drawer--collapsed");
+        this.el.hudChatDrawerTab.setAttribute("aria-expanded", "true");
+        if (panel) panel.removeAttribute("aria-hidden");
+      }
     }
 
     setupResponsiveMode() {
@@ -78,6 +114,7 @@
         const autoFold = document.getElementById("play-auto-details");
         if (historyFold) historyFold.open = !narrow;
         if (autoFold) autoFold.open = !narrow;
+        this.syncHudChatDrawerLayout();
       };
       apply();
       if (typeof mq.addEventListener === "function") {
