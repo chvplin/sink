@@ -60,10 +60,15 @@
     seenJoinKeys: new Set(),
     joinPollPrimed: false,
     stallRecoveryAttemptForRound: "",
-    lastVisibilityResyncAt: 0
+    lastVisibilityResyncAt: 0,
+    /** Aligns local clock to host timeline using payload.publishedAt (fixes skewed "next round in Xs" for joiners). */
+    hostTimeOffsetMs: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function roundNowMs() {
+    return Date.now() + (gameState.hostTimeOffsetMs || 0);
+  }
   function saveAll() { dataService.savePlayerProfile(profile); }
   function cyrb128(str) {
     let h1 = 1779033703; let h2 = 3144134277; let h3 = 1013904242; let h4 = 2773480762;
@@ -278,6 +283,7 @@
 
   function beginPreRound() {
     gameState.stallRecoveryAttemptForRound = "";
+    gameState.hostTimeOffsetMs = 0;
     const roundRng = createRoundRng(gameState.nonce + 1);
     gameState.phase = "preRound";
     gameState.roundMode = "normal";
@@ -318,7 +324,7 @@
     if (gameState.phase !== "preRound") return;
     gameState.phase = "active";
     const scheduledStart = gameState.countdownStartMs + gameState.countdownDurationMs;
-    const nowMs = Date.now();
+    const nowMs = roundNowMs();
     gameState.roundStartMs = scheduledStart > nowMs + 2000 ? nowMs : Math.min(Math.max(scheduledStart, nowMs - 80), nowMs + 2000);
     const pending = gameState.pendingRoundMode || "normal";
     gameState.pendingRoundMode = "normal";
@@ -410,7 +416,7 @@
   function crashRound({ publish = true, scheduleNextRound = true } = {}) {
     gameState.phase = "crashed";
     gameState.didCrash = true;
-    gameState.roundEndMs = Date.now();
+    gameState.roundEndMs = roundNowMs();
     gameState.currentMultiplier = gameState.crashPoint;
     gameState.lastCrash = gameState.crashPoint;
     ui.setCrashPoint(gameState.crashPoint);
@@ -627,8 +633,19 @@
     gameState.nonce = Number(state.nonce || gameState.nonce);
     gameState.crashPoint = Number(state.crashPoint || gameState.crashPoint);
     gameState.isLuckyRound = !!state.isLuckyRound;
-    gameState.countdownStartMs = Number(state.countdownStartMs || gameState.countdownStartMs || Date.now());
-    gameState.countdownDurationMs = Number(state.countdownDurationMs || 10000);
+    gameState.countdownStartMs = Number(
+      state.countdownStartMs != null && state.countdownStartMs !== ""
+        ? state.countdownStartMs
+        : (gameState.countdownStartMs || Date.now())
+    );
+    gameState.countdownDurationMs = Number(
+      state.countdownDurationMs != null && state.countdownDurationMs !== ""
+        ? state.countdownDurationMs
+        : 10000
+    );
+    if (publishedAt) {
+      gameState.hostTimeOffsetMs = clamp(publishedAt - Date.now(), -180000, 180000);
+    }
     gameState.roundStartMs = Number(state.roundStartMs || 0);
     gameState.roundEndMs = Number(state.roundEndMs || 0);
     gameState.didCrash = gameState.phase === "crashed";
@@ -671,9 +688,10 @@
     applyLiveRoundState(latest);
   }
 
-  function maybeRecoverStalledRound(now) {
+  function maybeRecoverStalledRound() {
     if (gameState.phase !== "crashed" || !gameState.roundEndMs) return;
-    if (now - gameState.roundEndMs < 5200) return;
+    const nowR = roundNowMs();
+    if (nowR - gameState.roundEndMs < 5200) return;
     const rid = gameState.roundId;
     if (gameState.stallRecoveryAttemptForRound === rid) return;
     gameState.stallRecoveryAttemptForRound = rid;
@@ -847,16 +865,17 @@
     syncSharedRoundState();
     syncLiveBets();
     pollSocialLayer(now);
-    maybeRecoverStalledRound(now);
+    maybeRecoverStalledRound();
+    const nowR = roundNowMs();
     if (gameState.phase === "preRound") {
-      const elapsed = now - gameState.countdownStartMs;
+      const elapsed = nowR - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
       ui.setCountdown(remaining);
       if (elapsed >= gameState.countdownDurationMs) {
         beginRound();
       }
     } else if (gameState.phase === "active") {
-      const elapsed = now - gameState.roundStartMs;
+      const elapsed = nowR - gameState.roundStartMs;
       gameState.currentMultiplier = Number(multiplierFromElapsedMs(elapsed).toFixed(2));
       if (didPlayerParticipateInRound()) {
         CONFIG.MILESTONES.forEach((m) => {
@@ -874,7 +893,7 @@
         evaluateAutoCashout();
       }
     } else if (gameState.phase === "crashed") {
-      ui.setCountdown(Math.max(0, (2400 - (now - gameState.roundEndMs)) / 1000));
+      ui.setCountdown(Math.max(0, (2400 - (nowR - gameState.roundEndMs)) / 1000));
       evaluateAutoStopConditions();
     }
     updateCashOutButtonState();
