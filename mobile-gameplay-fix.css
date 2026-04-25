@@ -202,3 +202,16 @@ body.mobile-ui .mobile-top-chip {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
   }
 }
+
+/*
+ * Portrait: deep-dive gives .play-controls-panel flex:1 1 auto (beats .mobile-ui flex:0).
+ * Shell already display:none's the children and moves them to the action bar/modal, but the
+ * empty .controls-panel shell still paints the full-height blue gradient — hide the shell.
+ * Landscape keeps the narrow right-rail controls (deep-dive); do not apply there.
+ */
+@media (max-width: 768px) and (orientation: portrait) {
+  body.mobile-ui #panel-play .play-controls-panel,
+  body.mobile-ui #panel-play .play-controls-panel.controls-panel {
+    display: none !important;
+  }
+}
