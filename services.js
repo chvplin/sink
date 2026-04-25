@@ -472,7 +472,7 @@
       }
     }
 
-    subscribeGlobalRounds(onRow) {
+    subscribeGlobalRounds(onRow, onChannelStatus) {
       if (!this.supabase || typeof onRow !== "function") return () => {};
       const channel = this.supabase
         .channel("global-rounds-feed")
@@ -484,7 +484,15 @@
             if (row && row.lobby_id === "global") onRow(row);
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (typeof onChannelStatus === "function") onChannelStatus(String(status));
+          // #region agent log
+          if (typeof fetch !== "undefined") {
+            fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-C", location: "services.js:subscribeGlobalRounds", message: "channel status", data: { status: String(status) }, timestamp: Date.now() }) }).catch(() => {});
+          }
+          try { console.warn("[SYNCDBG357a69]", "H-C", "global_rounds channel", String(status)); } catch (e) { /* ignore */ }
+          // #endregion
+        });
       return () => {
         try {
           this.supabase.removeChannel(channel);

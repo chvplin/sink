@@ -69,7 +69,8 @@
     _serverHandledCrashSeq: null,
     _serverCountdownSyncedSeq: null,
     _serverJoinedRoundSeq: null,
-    _lastServerOffsetRefresh: 0
+    _lastServerOffsetRefresh: 0,
+    _agentDbgTickLogAt: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
@@ -129,9 +130,27 @@
   function serverNowMs() {
     return Date.now() + (gameState.serverTimeOffsetMs || 0);
   }
+  /** Avoid stale HTTP poll responses overwriting newer Realtime state (out-of-order completion). */
+  function shouldReplaceGlobalRoundRow(incoming, cur) {
+    if (!incoming) return false;
+    if (!cur) return true;
+    const is = Number(incoming.round_seq);
+    const cs = Number(cur.round_seq);
+    if (is > cs) return true;
+    if (is < cs) return false;
+    const iu = incoming.updated_at ? new Date(incoming.updated_at).getTime() : 0;
+    const cu = cur.updated_at ? new Date(cur.updated_at).getTime() : 0;
+    if (iu > cu) return true;
+    if (iu < cu) return false;
+    const R = { countdown: 1, active: 2, crashed: 3 };
+    return (R[incoming.status] || 0) >= (R[cur.status] || 0);
+  }
   async function refreshServerTimeOffset() {
     if (!dataService.supabase || typeof dataService.rpcServerNowMs !== "function") return;
     const ms = await dataService.rpcServerNowMs();
+    // #region agent log
+    fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-B", location: "game.js:refreshServerTimeOffset", message: "rpc server_now_ms result", data: { rpcMs: ms == null ? null : ms, offsetAfter: ms == null ? null : (ms - Date.now()) }, timestamp: Date.now() }) }).catch(() => {});
+    // #endregion
     if (ms == null) return;
     gameState.serverTimeOffsetMs = ms - Date.now();
     gameState._lastServerOffsetRefresh = Date.now();
@@ -696,13 +715,23 @@
   async function initServerAuthoritativeRounds() {
     gameState.serverAuthoritativeRounds = false;
     if (typeof dataService.useGlobalAuthoritativeRounds !== "function" || !dataService.useGlobalAuthoritativeRounds()) {
+      // #region agent log
+      fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:initServerAuthoritativeRounds", message: "server rounds disabled", data: { hasMethod: typeof dataService.useGlobalAuthoritativeRounds === "function", flag: typeof dataService.useGlobalAuthoritativeRounds === "function" ? !!dataService.useGlobalAuthoritativeRounds() : null }, timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
       return false;
     }
     try {
       await refreshServerTimeOffset();
-      const row = await dataService.fetchLatestGlobalRound();
+      let row = null;
+      for (let attempt = 0; attempt < 4 && !row; attempt += 1) {
+        row = await dataService.fetchLatestGlobalRound();
+      }
       if (!row) {
         console.warn("global_rounds: no rows yet. Apply migration and schedule Edge Function global-game-tick (~1s).");
+        // #region agent log
+        fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:initServerAuthoritativeRounds", message: "fetchLatestGlobalRound empty after retries", data: { attempts: 4 }, timestamp: Date.now() }) }).catch(() => {});
+        try { console.warn("[SYNCDBG357a69]", "H-A", "global_rounds fetch empty after 4 attempts"); } catch (e) { /* ignore */ }
+        // #endregion
         return false;
       }
       if (gameState._globalRoundUnsub) {
@@ -715,11 +744,26 @@
       primeServerRoundFromRow(row);
       gameState._globalRoundUnsub = dataService.subscribeGlobalRounds((incoming) => {
         if (!incoming) return;
+        if (!shouldReplaceGlobalRoundRow(incoming, gameState.globalRoundRow)) return;
         gameState.globalRoundRow = incoming;
+        // #region agent log
+        fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-C", location: "game.js:subscribeGlobalRounds", message: "realtime row", data: { round_seq: incoming.round_seq, status: incoming.status }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
+      }, (channelStatus) => {
+        if (channelStatus !== "SUBSCRIBED") {
+          gameState._serverRoundFetchAt = 0;
+        }
       });
+      // #region agent log
+      fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:initServerAuthoritativeRounds", message: "server rounds enabled", data: { round_seq: row.round_seq, status: row.status }, timestamp: Date.now() }) }).catch(() => {});
+      try { console.warn("[SYNCDBG357a69]", "H-A", "server rounds enabled", { round_seq: row.round_seq, status: row.status }); } catch (e) { /* ignore */ }
+      // #endregion
       return true;
     } catch (e) {
       console.warn("initServerAuthoritativeRounds failed", e);
+      // #region agent log
+      fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:initServerAuthoritativeRounds", message: "init exception", data: { err: String(e && e.message ? e.message : e) }, timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
       return false;
     }
   }
@@ -1217,13 +1261,37 @@
         gameState._serverRoundFetchAt = now;
         void (async () => {
           const r = await dataService.fetchLatestGlobalRound();
-          if (r) gameState.globalRoundRow = r;
+          if (!r) return;
+          const cur = gameState.globalRoundRow;
+          if (!shouldReplaceGlobalRoundRow(r, cur)) {
+            // #region agent log
+            fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-F", location: "game.js:tick.pollGlobalRound", message: "stale poll ignored", data: { poll_seq: r.round_seq, cur_seq: cur ? cur.round_seq : null }, timestamp: Date.now() }) }).catch(() => {});
+            // #endregion
+            return;
+          }
+          gameState.globalRoundRow = r;
+          // #region agent log
+          fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-C", location: "game.js:tick.pollGlobalRound", message: "poll row applied", data: { round_seq: r.round_seq, status: r.status }, timestamp: Date.now() }) }).catch(() => {});
+          // #endregion
         })();
+      }
+      if (now - gameState._agentDbgTickLogAt > 2000) {
+        gameState._agentDbgTickLogAt = now;
+        const gr = gameState.globalRoundRow;
+        // #region agent log
+        fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-B", location: "game.js:tick.serverSample", message: "server tick sample", data: { phase: gameState.phase, round_seq: gr ? gr.round_seq : null, rowStatus: gr ? gr.status : null, serverNowMs: serverNowMs(), wallNow: now, offsetMs: gameState.serverTimeOffsetMs || 0, mult: gameState.currentMultiplier }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
       }
       syncLiveBets();
       pollSocialLayer(now);
       tickServerRounds(serverNowMs());
     } else {
+      if (now - gameState._agentDbgTickLogAt > 3000) {
+        gameState._agentDbgTickLogAt = now;
+        // #region agent log
+        fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:tick.clientPath", message: "legacy client-driven tick", data: { phase: gameState.phase, roundId: gameState.roundId, isRoundHost: gameState.isRoundHost }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
+      }
       syncSharedRoundState();
       syncLiveBets();
       pollSocialLayer(now);
@@ -1314,6 +1382,10 @@
     ui.setBetInputValue(Math.min(10, Math.max(0.01, profile.balance)));
     ui.setCrashPoint(0);
     const serverRounds = await initServerAuthoritativeRounds();
+    // #region agent log
+    fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:init", message: "post initServerAuthoritativeRounds", data: { serverRounds, serverAuthoritativeRounds: gameState.serverAuthoritativeRounds }, timestamp: Date.now() }) }).catch(() => {});
+    try { console.warn("[SYNCDBG357a69]", "H-A", "init outcome", { serverRounds, serverAuthoritativeRounds: gameState.serverAuthoritativeRounds }); } catch (e) { /* ignore */ }
+    // #endregion
     if (!serverRounds) {
       await syncSharedRoundState(true);
       if (!gameState.roundId) {
@@ -1337,7 +1409,7 @@
         gameState._serverRoundFetchAt = 0;
         void refreshServerTimeOffset().then(async () => {
           const r = await dataService.fetchLatestGlobalRound();
-          if (r) gameState.globalRoundRow = r;
+          if (r && shouldReplaceGlobalRoundRow(r, gameState.globalRoundRow)) gameState.globalRoundRow = r;
         });
       } else {
         syncSharedRoundState(true);
