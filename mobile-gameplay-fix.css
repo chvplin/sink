@@ -99,6 +99,7 @@ body.mobile-ui .mobile-chrome {
 body.mobile-ui #mobile-action-bar.mobile-action-bar,
 body.mobile-ui .mobile-action-bar {
   position: fixed !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 6px) !important;
   z-index: 2600 !important;
   display: flex !important;
   flex-direction: row !important;
