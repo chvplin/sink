@@ -16,6 +16,12 @@
     settings: "Settings"
   };
 
+  const PANEL_ALIASES = {
+    submarines: "subs",
+    collection: "subs",
+    hangar: "subs"
+  };
+
   const PANEL_SELECTORS = {
     bet: [".play-controls-panel .bet-input-group"],
     auto: ["#play-auto-details"],
@@ -72,6 +78,7 @@
     if (root) {
       root.classList.add("hidden");
       root.setAttribute("aria-hidden", "true");
+      root.removeAttribute("data-panel");
     }
     document.body.classList.remove("mobile-modal-open");
     const chat = document.getElementById("hud-chat-drawer");
@@ -82,8 +89,9 @@
     }
   }
 
-  function openMobileModal(panelId) {
+  function openMobileModal(rawId) {
     if (!document.body.classList.contains("mobile-ui")) return;
+    const panelId = PANEL_ALIASES[rawId] || rawId;
     const body = document.getElementById("mobile-modal-body");
     const titleEl = document.getElementById("mobile-modal-title");
     const root = document.getElementById("mobile-modal-root");
@@ -110,6 +118,7 @@
     });
 
     if (titleEl) titleEl.textContent = MODAL_TITLES[panelId] || panelId;
+    root.dataset.panel = panelId;
     root.classList.remove("hidden");
     root.setAttribute("aria-hidden", "false");
     document.body.classList.add("mobile-modal-open");
@@ -172,23 +181,27 @@
   function bindModalClose() {
     const backdrop = document.getElementById("mobile-modal-backdrop");
     const closeBtn = document.getElementById("mobile-modal-close");
-    const win = document.querySelector(".mobile-modal-window");
     if (backdrop) backdrop.addEventListener("click", () => closeMobileModal());
     if (closeBtn) closeBtn.addEventListener("click", () => closeMobileModal());
-    if (win) {
-      win.addEventListener("click", (e) => e.stopPropagation());
-    }
   }
 
   function bindTopMenu() {
     const top = document.getElementById("mobile-top-menu");
     if (!top) return;
-    top.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-mobile-modal]");
-      if (!btn) return;
-      const id = btn.getAttribute("data-mobile-modal");
-      if (id) openMobileModal(id);
-    });
+    top.addEventListener(
+      "click",
+      (e) => {
+        const btn = e.target.closest("[data-mobile-modal]");
+        if (!btn) return;
+        const id = btn.getAttribute("data-mobile-modal");
+        if (id) {
+          e.preventDefault();
+          e.stopPropagation();
+          openMobileModal(id);
+        }
+      },
+      true
+    );
   }
 
   function init() {
@@ -203,6 +216,9 @@
     openMobileModal,
     closeMobileModal,
     refreshLayout
+  };
+  window.openMobileModal = function (name) {
+    openMobileModal(String(name || ""));
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

@@ -10,6 +10,8 @@ body:not(.mobile-ui) .mobile-chrome {
 
 .mobile-chrome {
   pointer-events: none;
+  position: relative;
+  z-index: 1150;
 }
 
 .mobile-chrome .mobile-top-menu,
@@ -286,6 +288,48 @@ body.mobile-ui #panel-play .multiplier-value {
   pointer-events: none;
 }
 
+/* Multiplier: plain yellow text, top-center — no card / panel chrome */
+body.mobile-ui #panel-play .viewport-hud--left {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 4px 8px !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+body.mobile-ui #panel-play .viewport-hud--left .multiplier-label {
+  display: none !important;
+}
+
+body.mobile-ui .multiplier-display,
+body.mobile-ui .current-multiplier,
+body.mobile-ui #multiplier-display.multiplier-value {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top, 0px) + 62px) !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  font-size: clamp(28px, 8vw, 52px) !important;
+  font-weight: 700 !important;
+  color: #ffd84d !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45) !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex: none !important;
+  width: auto !important;
+  max-width: none !important;
+  line-height: 1 !important;
+  pointer-events: none !important;
+  z-index: 980;
+}
+
 body.mobile-ui #panel-play .play-stage {
   position: absolute !important;
   inset: 0 !important;
@@ -408,6 +452,10 @@ body.mobile-ui .mobile-modal-body .friends-panel {
   max-height: none;
 }
 
+body.mobile-ui .mobile-modal-body .desktop-panel-close {
+  display: none !important;
+}
+
 /* ---- Modal layer ---- */
 body.mobile-ui .mobile-modal-root {
   position: fixed;
@@ -482,6 +530,38 @@ body.mobile-ui .mobile-modal-body {
   -webkit-overflow-scrolling: touch;
   padding: 10px;
   box-sizing: border-box;
+}
+
+/* Bet modal: keep primary controls in view; scroll only if needed */
+body.mobile-ui .mobile-modal-root[data-panel="bet"] .mobile-modal-window {
+  max-height: min(58dvh, 440px);
+}
+
+body.mobile-ui .mobile-modal-root[data-panel="bet"] .mobile-modal-body {
+  max-height: min(40dvh, 280px);
+  padding-top: 8px;
+}
+
+body.mobile-ui .mobile-modal-root[data-panel="bet"] .mobile-modal-body .preset-row {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+body.mobile-ui .mobile-modal-root[data-panel="bet"] .mobile-modal-body .preset-btn {
+  min-height: 32px;
+  max-height: 36px;
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+body.mobile-ui .mobile-modal-root[data-panel="bet"] .mobile-modal-body .bet-controls {
+  max-width: 100%;
+}
+
+body.mobile-ui .mobile-modal-root[data-panel="bet"] .mobile-modal-body #bet-input {
+  max-height: 36px;
+  font-size: 15px;
 }
 
 body.mobile-ui .mobile-modal-body .play-controls-panel {

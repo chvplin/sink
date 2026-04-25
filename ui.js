@@ -211,6 +211,14 @@
       this.el.tabs.forEach((tabBtn) => {
         tabBtn.addEventListener("click", () => this.switchTab(tabBtn.dataset.tab));
       });
+
+      const hudRoot = document.querySelector("main.hud");
+      if (hudRoot && !this._desktopPanelCloseBound) {
+        this._desktopPanelCloseBound = true;
+        hudRoot.addEventListener("click", (e) => {
+          if (e.target.closest(".desktop-panel-close")) this.switchTab("play");
+        });
+      }
       this.el.leaderTabs.forEach((tabBtn) => {
         tabBtn.addEventListener("click", () => {
           this.currentLeaderboardTab = tabBtn.dataset.leaderTab;
