@@ -156,6 +156,13 @@ body.mobile-ui #cashout-button {
   font-size: 12px !important;
   font-weight: 800 !important;
   border-radius: 10px !important;
+  position: relative !important;
+  top: -8px !important;
+}
+
+body.mobile-ui .mobile-action-bar .stake-info {
+  position: relative !important;
+  top: -8px !important;
 }
 
 body.mobile-ui .mobile-top-menu {
