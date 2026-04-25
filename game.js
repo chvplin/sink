@@ -81,6 +81,9 @@
     _sessionCashoutPayout: null
   };
 
+  let cachedFriendRows = [];
+  const lastFriendsSearch = { performed: false, rawResults: [] };
+
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
   function saveAll() { dataService.savePlayerProfile(profile); }
   function cyrb128(str) {
@@ -338,6 +341,200 @@
     dismissPostRoundSummary();
   }
 
+  function friendshipRelationFor(targetId, rows, myId) {
+    for (let i = 0; i < rows.length; i += 1) {
+      const r = rows[i];
+      if (r.status === "accepted") {
+        if ((r.sender_id === myId && r.receiver_id === targetId) || (r.sender_id === targetId && r.receiver_id === myId)) {
+          return "friends";
+        }
+      }
+      if (r.status === "pending" && r.sender_id === myId && r.receiver_id === targetId) return "sent";
+      if (r.status === "pending" && r.sender_id === targetId && r.receiver_id === myId) return "incoming";
+    }
+    return "none";
+  }
+
+  function hasTransferBlockingDebt() {
+    return !!(window.PlayerRecovery && window.PlayerRecovery.getRemainingDebt(profile) > 0);
+  }
+
+  async function refreshFriendsUI() {
+    const authed = !!(dataService.user || (await dataService.getCurrentUser()));
+    if (!authed) {
+      cachedFriendRows = [];
+      ui.renderFriendsPanel({
+        authenticated: false,
+        hasDebt: false,
+        supabaseMissing: false,
+        searchResults: [],
+        incoming: [],
+        friends: [],
+        transferHistory: [],
+        searchPerformed: lastFriendsSearch.performed,
+        transferBlocked: true
+      });
+      return;
+    }
+    if (!dataService.supabase) {
+      cachedFriendRows = [];
+      ui.renderFriendsPanel({
+        authenticated: true,
+        hasDebt: false,
+        supabaseMissing: true,
+        searchResults: [],
+        incoming: [],
+        friends: [],
+        transferHistory: [],
+        searchPerformed: lastFriendsSearch.performed,
+        transferBlocked: true
+      });
+      return;
+    }
+    const me = dataService.user.id;
+    const rows = await dataService.fetchFriendRequestRows();
+    cachedFriendRows = rows;
+    const senderIds = rows.filter((r) => r.status === "pending" && r.receiver_id === me).map((r) => r.sender_id);
+    const senderNames = await dataService.getDisplayNamesForUserIds(senderIds);
+    const incoming = rows
+      .filter((r) => r.status === "pending" && r.receiver_id === me)
+      .map((r) => ({
+        id: r.id,
+        senderName: senderNames[r.sender_id] || "Player"
+      }));
+    const friendIds = new Set();
+    rows.forEach((r) => {
+      if (r.status !== "accepted") return;
+      const other = r.sender_id === me ? r.receiver_id : r.sender_id;
+      friendIds.add(other);
+    });
+    const fids = Array.from(friendIds);
+    const friendNames = await dataService.getDisplayNamesForUserIds(fids);
+    const friends = fids.map((id) => ({
+      userId: id,
+      displayName: friendNames[id] || "Player",
+      online: false
+    }));
+    const histRaw = await dataService.fetchTransferHistory(40);
+    const transferHistory = histRaw.map((h) => ({
+      ...h,
+      createdAtLabel: h.createdAt ? new Date(h.createdAt).toLocaleString() : ""
+    }));
+    const searchResults = (lastFriendsSearch.rawResults || []).map((u) => ({
+      userId: u.userId,
+      displayName: u.displayName,
+      relation: friendshipRelationFor(u.userId, rows, me)
+    }));
+    const hasDebt = hasTransferBlockingDebt();
+    ui.renderFriendsPanel({
+      authenticated: true,
+      hasDebt,
+      supabaseMissing: false,
+      searchResults,
+      incoming,
+      friends,
+      transferHistory,
+      searchPerformed: lastFriendsSearch.performed,
+      transferBlocked: hasDebt
+    });
+  }
+
+  async function onFriendsSearch() {
+    await refreshFriendsUI();
+    const q = ui.getFriendsSearchQuery();
+    if (q.length < 2) {
+      ui.showToast("Friends", "Type at least 2 characters.");
+      lastFriendsSearch.performed = true;
+      lastFriendsSearch.rawResults = [];
+      await refreshFriendsUI();
+      return;
+    }
+    const results = await dataService.searchProfilesForFriends(q);
+    lastFriendsSearch.performed = true;
+    lastFriendsSearch.rawResults = results;
+    await refreshFriendsUI();
+  }
+
+  async function onFriendsRefresh() {
+    await refreshFriendsUI();
+  }
+
+  async function onFriendsSendRequest(userId) {
+    const r = await dataService.sendFriendRequest(userId);
+    if (!r.ok) ui.showToast("Friends", r.message || "Could not send request.");
+    else ui.showToast("Friends", "Friend request sent.");
+    await refreshFriendsUI();
+  }
+
+  async function onFriendsAcceptRequest(requestId) {
+    const r = await dataService.respondFriendRequest(requestId, true);
+    if (!r.ok) ui.showToast("Friends", r.message || "Could not accept.");
+    else ui.showToast("Friends", "You are now friends.");
+    await refreshFriendsUI();
+  }
+
+  async function onFriendsDeclineRequest(requestId) {
+    const r = await dataService.respondFriendRequest(requestId, false);
+    if (!r.ok) ui.showToast("Friends", r.message || "Could not decline.");
+    await refreshFriendsUI();
+  }
+
+  async function onFriendsRemove(userId) {
+    const r = await dataService.removeFriendship(userId);
+    if (!r.ok) ui.showToast("Friends", r.message || "Could not remove friend.");
+    else ui.showToast("Friends", "Friend removed.");
+    await refreshFriendsUI();
+  }
+
+  function onFriendsOpenTransfer(userId, displayName) {
+    if (hasTransferBlockingDebt()) {
+      ui.showToast("Transfer", "You cannot send transfers while you have unpaid debt.");
+      return;
+    }
+    ui.openFriendsTransferModal({
+      recipientId: userId,
+      recipientName: displayName || "Friend",
+      balanceFormatted: ui.formatMoney(profile.balance)
+    });
+  }
+
+  function onFriendsCloseTransfer() {
+    ui.closeFriendsTransferModal();
+  }
+
+  async function onFriendsConfirmTransfer() {
+    const rid = ui.getFriendsTransferRecipientId();
+    if (!rid) return;
+    const amt = ui.getFriendsTransferAmount();
+    if (!Number.isFinite(amt) || amt < 1) {
+      ui.showToast("Transfer", "Minimum transfer is $1.");
+      return;
+    }
+    ui.setFriendsTransferLoading(true);
+    const res = await dataService.transferToFriendRpc(rid, amt);
+    ui.setFriendsTransferLoading(false);
+    if (res.ok && res.newBalance != null && Number.isFinite(Number(res.newBalance))) {
+      profile.balance = Number(Number(res.newBalance).toFixed(2));
+      saveAll();
+      ui.setBalance(profile.balance);
+      const nm = ui.el.friendsTransferRecipient ? ui.el.friendsTransferRecipient.textContent : "friend";
+      ui.closeFriendsTransferModal();
+      ui.showToast("Transfer", `Sent ${ui.formatMoney(amt)} to ${nm}`);
+      if (typeof dataService.syncFromBackend === "function") {
+        const remote = await dataService.syncFromBackend();
+        if (remote) {
+          profile = remote;
+          if (window.PlayerRecovery) window.PlayerRecovery.ensureRecovery(profile);
+          renderAllPanels();
+        }
+      } else {
+        await refreshFriendsUI();
+      }
+    } else {
+      ui.showToast("Transfer", res.message || "Transfer failed.");
+    }
+  }
+
   function didPlayerParticipateInRound() {
     const p = gameState.roundParticipation;
     return p.playerBetPlaced && p.playerJoinedRound && p.betAmount > 0;
@@ -441,6 +638,15 @@
     ui.applyAutoBetConfig(profile.settings);
     ui.renderLiveBets([]);
   }
+
+  window.__gameMobileOpenRecovery = openRecoveryHub;
+  window.__gameMobileFriendsOpen = () => {
+    void refreshFriendsUI();
+  };
+  window.__gameMobileShopOpen = renderCosmeticShopPanel;
+  window.__gameMobileBoardOpen = () => {
+    void refreshLeaderboard(currentLeaderboardTab);
+  };
 
   function updateChallenges(metricName, value) {
     const bump = (list) => {
@@ -1679,6 +1885,17 @@
       onPostRoundSummaryClose
     });
     ui.bindRecoveryHub(onRecoveryAction);
+    ui.bindFriendsPanel({
+      onFriendsSearch,
+      onFriendsRefresh,
+      onFriendsSendRequest,
+      onFriendsAcceptRequest,
+      onFriendsDeclineRequest,
+      onFriendsRemove,
+      onFriendsOpenTransfer,
+      onFriendsCloseTransfer,
+      onFriendsConfirmTransfer
+    });
     document.addEventListener("click", (event) => {
       const claimBtn = event.target.closest(".claim-btn");
       if (claimBtn) claimChallenge(claimBtn.dataset.claimId);
@@ -1694,6 +1911,11 @@
     document.querySelectorAll('[data-tab="shop"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         renderCosmeticShopPanel();
+      });
+    });
+    document.querySelectorAll('[data-tab="friends"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        void refreshFriendsUI();
       });
     });
     if (typeof dataService.syncFromBackend === "function") {

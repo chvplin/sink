@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..600&family=Orbitron:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="deep-dive-theme.css">
+  <link rel="stylesheet" href="mobile-shell.css">
 </head>
 <body>
   <div id="game-root">
@@ -17,6 +18,37 @@
     <div class="depth-tint" id="depth-tint"></div>
     <div id="lucky-round-banner" class="lucky-round-banner hidden">Lucky Round! 2x payout bonus active</div>
     <div id="player-join-banner" class="player-join-banner player-join-banner--dismissed" role="status" aria-live="polite"></div>
+
+    <div class="mobile-chrome" aria-hidden="true">
+      <nav class="mobile-top-menu" id="mobile-top-menu" aria-label="Quick menus">
+        <button type="button" class="mobile-top-chip" data-mobile-modal="bet">Bet</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="auto">Auto</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="stats">Stats</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="shop">Shop</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="friends">Friends</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="recovery">Recovery</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="daily">Daily</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="chat">Chat</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="board">Board</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="subs">Subs</button>
+        <button type="button" class="mobile-top-chip" data-mobile-modal="settings">Settings</button>
+      </nav>
+      <div class="mobile-phase-strip" id="mobile-phase-strip"></div>
+      <footer class="mobile-action-bar" id="mobile-action-bar">
+        <div class="mobile-action-bar__row1" id="mobile-action-row1"></div>
+        <div class="mobile-action-bar__row2" id="mobile-action-row2"></div>
+      </footer>
+      <div id="mobile-modal-root" class="mobile-modal-root hidden" aria-hidden="true">
+        <div class="mobile-modal-backdrop" id="mobile-modal-backdrop"></div>
+        <div class="mobile-modal-window" role="dialog" aria-modal="true" aria-labelledby="mobile-modal-title">
+          <div class="mobile-modal-header">
+            <h2 class="mobile-modal-title" id="mobile-modal-title">Menu</h2>
+            <button type="button" class="mobile-modal-close" id="mobile-modal-close" aria-label="Close">×</button>
+          </div>
+          <div id="mobile-modal-body" class="mobile-modal-body"></div>
+        </div>
+      </div>
+    </div>
 
     <div class="depth-bar-top" id="depth-bar-top" aria-label="Dive depth">
       <span class="depth-bar-top__label">Depth</span>
@@ -38,6 +70,7 @@
       </div>
       <div class="game-header__actions">
         <div class="hud-icon-row" aria-label="Quick sections">
+          <button type="button" class="hud-icon-btn" data-tab="friends" title="Friends">👥</button>
           <button type="button" class="hud-icon-btn" data-tab="shop" title="Cosmetic shop">🛒</button>
           <button type="button" class="hud-icon-btn" data-tab="achievements" title="Honors">★</button>
           <button type="button" class="hud-icon-btn" data-tab="challenges" title="Missions">◎</button>
@@ -87,6 +120,7 @@
       <button type="button" class="dock-btn" data-tab="stats"><span class="dock-btn__label">Log</span></button>
       <button type="button" class="dock-btn" data-tab="settings"><span class="dock-btn__label">Bay</span></button>
       <button type="button" class="dock-btn" data-tab="shop"><span class="dock-btn__label">Shop</span></button>
+      <button type="button" class="dock-btn" data-tab="friends"><span class="dock-btn__label">Friends</span></button>
     </nav>
 
     <main class="hud">
@@ -240,6 +274,35 @@
         <div class="cosmetic-shop-cats" id="cosmetic-shop-categories" role="tablist" aria-label="Shop categories"></div>
         <div id="cosmetic-shop-grid" class="cosmetic-shop-grid"></div>
       </section>
+
+      <section id="panel-friends" class="tab-panel friends-panel" aria-label="Friends and transfers">
+        <div class="friends-panel__head">
+          <h2>Friends</h2>
+          <button type="button" id="friends-refresh-btn" class="friends-btn friends-btn--small">Refresh</button>
+        </div>
+        <p id="friends-auth-note" class="friends-note hidden">Sign in to search players, manage requests, and send transfers.</p>
+        <p id="friends-debt-note" class="friends-note friends-note--warn hidden">You cannot send transfers while you have unpaid debt.</p>
+        <div class="friends-section">
+          <h3 class="friends-section__title">Search players</h3>
+          <form id="friends-search-form" class="friends-search-form" autocomplete="off">
+            <input id="friends-search-input" class="friends-input" type="search" maxlength="64" placeholder="Display name…" enterkeyhint="search" />
+            <button type="submit" class="friends-btn">Search</button>
+          </form>
+          <div id="friends-search-results" class="friends-cards"></div>
+        </div>
+        <div class="friends-section">
+          <h3 class="friends-section__title">Incoming requests</h3>
+          <div id="friends-incoming-list" class="friends-cards"></div>
+        </div>
+        <div class="friends-section">
+          <h3 class="friends-section__title">Friends</h3>
+          <div id="friends-list" class="friends-cards"></div>
+        </div>
+        <div class="friends-section">
+          <h3 class="friends-section__title">Transfer history</h3>
+          <ul id="friends-transfer-history" class="friends-history"></ul>
+        </div>
+      </section>
     </main>
 
     <footer class="fairness-bar">
@@ -255,6 +318,22 @@
         <p id="post-round-summary-next" class="post-round-summary__next"></p>
       </div>
     </aside>
+
+    <div id="friends-transfer-modal" class="friends-transfer-modal hidden" aria-hidden="true">
+      <div class="friends-transfer-modal__backdrop" id="friends-transfer-modal-backdrop" aria-label="Close"></div>
+      <div class="friends-transfer-modal__dialog" role="dialog" aria-labelledby="friends-transfer-title">
+        <header class="friends-transfer-modal__header">
+          <h3 id="friends-transfer-title">Send to friend</h3>
+          <button type="button" class="friends-transfer-modal__close" id="friends-transfer-modal-close" aria-label="Close">×</button>
+        </header>
+        <p class="friends-transfer-modal__recipient">To <strong id="friends-transfer-recipient-name">—</strong></p>
+        <p class="friends-transfer-modal__balance">Your balance <strong id="friends-transfer-balance">$0.00</strong></p>
+        <label class="friends-transfer-modal__label" for="friends-transfer-amount">Amount</label>
+        <input id="friends-transfer-amount" class="friends-input" type="number" min="1" step="0.01" value="10" />
+        <p class="friends-transfer-modal__warn" id="friends-transfer-warn">Transfers use virtual in-game currency only and cannot be reversed automatically.</p>
+        <button type="button" id="friends-transfer-confirm" class="friends-btn friends-btn--primary">Confirm send</button>
+      </div>
+    </div>
 
     <div id="toast-root" class="toast-root"></div>
 
@@ -313,6 +392,7 @@
   <script src="recovery.js"></script>
   <script src="animations.js"></script>
   <script src="ui.js"></script>
+  <script src="mobile-shell.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

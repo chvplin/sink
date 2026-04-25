@@ -1,0 +1,624 @@
+/* Mobile shell v2 — only with body.mobile-ui (max-width: 768px from JS). Desktop unchanged. */
+
+body.mobile-ui .mobile-chrome {
+  display: block;
+}
+
+body:not(.mobile-ui) .mobile-chrome {
+  display: none !important;
+}
+
+.mobile-chrome {
+  pointer-events: none;
+}
+
+.mobile-chrome .mobile-top-menu,
+.mobile-chrome .mobile-phase-strip,
+.mobile-chrome .mobile-action-bar,
+.mobile-chrome .mobile-modal-root {
+  pointer-events: auto;
+}
+
+/* ---- Top mini menu ---- */
+body.mobile-ui .mobile-top-menu {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: 0;
+  right: 0;
+  height: 38px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  background: rgba(5, 10, 20, 0.72);
+  backdrop-filter: blur(8px);
+  box-sizing: border-box;
+}
+
+body.mobile-ui .mobile-top-menu::-webkit-scrollbar {
+  display: none;
+}
+
+body.mobile-ui .mobile-top-chip {
+  flex: 0 0 auto;
+  height: 30px;
+  min-height: 28px;
+  max-height: 34px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dd-text, #e8f4ff);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+body.mobile-ui .mobile-top-chip:active {
+  background: rgba(45, 226, 230, 0.15);
+}
+
+/* Phase strip under top menu */
+body.mobile-ui .mobile-phase-strip {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 38px);
+  left: 0;
+  right: 0;
+  height: 22px;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: rgba(5, 10, 20, 0.55);
+  backdrop-filter: blur(6px);
+  font-size: 11px;
+  color: var(--dd-muted, #7aa3c7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.mobile-ui .mobile-phase-strip #phase-label {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--dd-text, #e8f4ff);
+}
+
+/* ---- Bottom action bar ---- */
+body.mobile-ui .mobile-action-bar {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 0);
+  left: 0;
+  right: 0;
+  min-height: 52px;
+  max-height: 64px;
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  gap: 4px 8px;
+  padding: 6px 8px;
+  background: rgba(5, 10, 20, 0.78);
+  backdrop-filter: blur(8px);
+  box-sizing: border-box;
+  align-items: center;
+}
+
+body.mobile-ui .mobile-action-bar__row1 {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+body.mobile-ui .mobile-action-bar__row2 {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+body.mobile-ui .mobile-action-bar .bank-label {
+  font-size: 10px;
+  color: var(--dd-muted, #7aa3c7);
+}
+
+body.mobile-ui .mobile-action-bar #balance-display {
+  font-size: 13px;
+}
+
+body.mobile-ui .mobile-action-bar .stake-info {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  font-size: 10px;
+}
+
+body.mobile-ui .mobile-action-bar .stake-info span {
+  font-size: 10px;
+}
+
+body.mobile-ui .mobile-action-bar .stake-info strong {
+  font-size: 12px;
+}
+
+body.mobile-ui .mobile-action-bar #bet-button,
+body.mobile-ui .mobile-action-bar #cashout-button {
+  height: 44px;
+  min-height: 40px;
+  max-height: 48px;
+  width: clamp(96px, 34vw, 150px);
+  font-size: 14px;
+  border-radius: 10px;
+  margin: 0;
+}
+
+body.mobile-ui .mobile-action-bar .action-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  margin: 0;
+}
+
+body.mobile-ui .mobile-action-bar #debt-indicator {
+  width: 100%;
+  margin-top: 2px;
+}
+
+/* ---- Game viewport: full area between chrome ---- */
+body.mobile-ui #scene-canvas {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top, 0px) + 38px + 22px) !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100vw !important;
+  height: auto !important;
+  z-index: 1;
+}
+
+body.mobile-ui .surface-waves,
+body.mobile-ui #depth-tint {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top, 0px) + 38px + 22px) !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 2;
+  pointer-events: none;
+}
+
+body.mobile-ui .depth-bar-top {
+  top: calc(env(safe-area-inset-top, 0px) + 38px + 22px + 6px) !important;
+  z-index: 30;
+}
+
+body.mobile-ui .fleet-wager-widget {
+  top: calc(env(safe-area-inset-top, 0px) + 38px + 22px + 6px) !important;
+  z-index: 30;
+}
+
+body.mobile-ui .lucky-round-banner {
+  top: calc(env(safe-area-inset-top, 0px) + 38px + 22px + 8px) !important;
+  z-index: 35;
+}
+
+body.mobile-ui .player-join-banner {
+  top: calc(env(safe-area-inset-top, 0px) + 38px + 22px + 40px) !important;
+}
+
+/* HUD overlay: multiplier only over canvas */
+body.mobile-ui .hud {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top, 0px) + 38px + 22px) !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100vw !important;
+  max-width: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none;
+  z-index: 20;
+}
+
+body.mobile-ui #panel-play.tab-panel.active {
+  display: block !important;
+  height: 100%;
+  background: transparent;
+}
+
+body.mobile-ui #panel-play .play-layout--split {
+  display: block !important;
+  height: 100%;
+  position: relative;
+}
+
+body.mobile-ui #panel-play .play-ui-column {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: min(10vh, 56px);
+  pointer-events: none;
+  background: transparent !important;
+  width: 100% !important;
+  max-width: none !important;
+  overflow: visible !important;
+}
+
+body.mobile-ui #panel-play .play-hud-stack {
+  pointer-events: none;
+  width: 100%;
+  max-width: 100%;
+  justify-content: center;
+}
+
+body.mobile-ui #panel-play .viewport-hud--left {
+  pointer-events: none;
+  text-align: center;
+}
+
+body.mobile-ui #panel-play .multiplier-value {
+  pointer-events: none;
+}
+
+body.mobile-ui #panel-play .play-stage {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+body.mobile-ui #panel-play .play-stage__frame,
+body.mobile-ui #panel-play .play-stage__canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* Hide chrome that moved into shell / modals */
+body.mobile-ui .game-header.top-bar {
+  display: none !important;
+}
+
+body.mobile-ui .dock-nav {
+  display: none !important;
+}
+
+body.mobile-ui .fairness-bar {
+  display: none !important;
+}
+
+body.mobile-ui .hud-chat-drawer {
+  display: none !important;
+}
+
+body.mobile-ui.mobile-modal-open {
+  overflow: hidden;
+}
+
+body.mobile-ui .mobile-modal-body > #hud-chat-drawer {
+  display: flex !important;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100% !important;
+  height: min(52dvh, 420px) !important;
+  max-height: 52dvh !important;
+  position: relative !important;
+  inset: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  top: auto !important;
+  left: auto !important;
+  pointer-events: auto;
+}
+
+body.mobile-ui .mobile-modal-body .hud-chat-drawer__tab {
+  display: none !important;
+}
+
+body.mobile-ui .mobile-modal-body .hud-chat-drawer__panel {
+  flex: 1 1 auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  opacity: 1 !important;
+  border-radius: 12px;
+}
+
+body.mobile-ui .mobile-modal-body .hud-chat-drawer--collapsed {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+body.mobile-ui .mobile-modal-body .hud-chat-drawer--collapsed .hud-chat-drawer__panel {
+  flex: 1 1 auto !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.mobile-ui .mobile-modal-body > footer.fairness-bar {
+  display: flex !important;
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100%;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.72rem;
+}
+
+body.mobile-ui .mobile-modal-body #play-auto-details {
+  display: block !important;
+}
+
+body.mobile-ui .play-controls-panel .bet-input-group,
+body.mobile-ui .play-controls-panel .preset-row,
+body.mobile-ui .play-controls-panel .play-fold--auto,
+body.mobile-ui .play-controls-panel .stake-info,
+body.mobile-ui .play-controls-panel .action-buttons {
+  display: none !important;
+}
+
+body.mobile-ui .play-side-panel {
+  display: none !important;
+}
+
+body.mobile-ui .tab-panel:not(#panel-play) {
+  display: none !important;
+}
+
+/* When modal hosts a tab-panel, show it inside modal */
+body.mobile-ui .mobile-modal-body .tab-panel {
+  display: block !important;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+}
+
+body.mobile-ui .mobile-modal-body .friends-panel {
+  max-height: none;
+}
+
+/* ---- Modal layer ---- */
+body.mobile-ui .mobile-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+body.mobile-ui .mobile-modal-root.hidden {
+  display: none !important;
+}
+
+body.mobile-ui .mobile-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+body.mobile-ui .mobile-modal-window {
+  position: relative;
+  z-index: 1;
+  width: min(94vw, 430px);
+  max-height: 82dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 14, 28, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-sizing: border-box;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+body.mobile-ui .mobile-modal-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  max-height: 40px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.mobile-ui .mobile-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+body.mobile-ui .mobile-modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+body.mobile-ui .mobile-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+body.mobile-ui .mobile-modal-body .play-controls-panel {
+  display: block !important;
+  padding: 0;
+}
+
+body.mobile-ui .mobile-modal-body .play-controls-panel .bet-input-group,
+body.mobile-ui .mobile-modal-body .play-controls-panel .preset-row {
+  display: block !important;
+}
+
+body.mobile-ui .mobile-modal-body .bet-input-group label {
+  font-size: 11px;
+}
+
+body.mobile-ui .mobile-modal-body #bet-input,
+body.mobile-ui .mobile-modal-body .play-fold--auto input[type="number"] {
+  max-height: 40px;
+  font-size: 14px;
+  padding: 6px 8px;
+}
+
+body.mobile-ui .mobile-modal-body .adjust-btn,
+body.mobile-ui .mobile-modal-body .preset-btn {
+  max-height: 40px;
+  min-height: 34px;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+body.mobile-ui .mobile-modal-body .action-btn,
+body.mobile-ui .mobile-modal-body .friends-btn {
+  max-height: 42px;
+  min-height: 36px;
+  font-size: 13px;
+}
+
+body.mobile-ui .mobile-modal-body h2 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+body.mobile-ui .mobile-modal-body .cosmetic-shop-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.mobile-ui .mobile-modal-body .leader-tabs {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+body.mobile-ui .mobile-modal-body .small-tab {
+  font-size: 11px;
+  padding: 4px 8px;
+  min-height: 34px;
+}
+
+body.mobile-ui .mobile-modal-body .hud-chat {
+  max-height: 55dvh;
+}
+
+body.mobile-ui .mobile-modal-body .hud-chat__messages {
+  max-height: 40dvh;
+}
+
+/* Recovery / friends transfer / post-round above mobile modal */
+body.mobile-ui .recovery-hub {
+  z-index: 2600 !important;
+}
+
+body.mobile-ui .friends-transfer-modal {
+  z-index: 2500 !important;
+}
+
+body.mobile-ui .post-round-summary {
+  z-index: 2450 !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important;
+}
+
+body.mobile-ui .toast-root {
+  z-index: 2700;
+}
+
+/* ---- ≤480px tighten ---- */
+@media (max-width: 480px) {
+  body.mobile-ui .mobile-top-chip {
+    font-size: 10px;
+    padding: 2px 7px;
+    height: 28px;
+  }
+
+  body.mobile-ui .mobile-action-bar #bet-button,
+  body.mobile-ui .mobile-action-bar #cashout-button {
+    width: clamp(88px, 38vw, 140px);
+    font-size: 13px;
+    height: 42px;
+  }
+
+  body.mobile-ui .mobile-modal-window {
+    width: min(96vw, 400px);
+    max-height: 84dvh;
+  }
+}
+
+/* ---- Mobile landscape ---- */
+@media (max-width: 932px) and (orientation: landscape) {
+  body.mobile-ui .mobile-top-menu {
+    height: 34px;
+    padding: 2px 4px;
+  }
+
+  body.mobile-ui .mobile-phase-strip {
+    top: calc(env(safe-area-inset-top, 0px) + 34px);
+    height: 20px;
+    font-size: 10px;
+  }
+
+  body.mobile-ui #scene-canvas,
+  body.mobile-ui .surface-waves,
+  body.mobile-ui #depth-tint {
+    top: calc(env(safe-area-inset-top, 0px) + 34px + 20px) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 48px) !important;
+  }
+
+  body.mobile-ui .hud {
+    top: calc(env(safe-area-inset-top, 0px) + 34px + 20px) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 48px) !important;
+  }
+
+  body.mobile-ui .mobile-action-bar {
+    min-height: 46px;
+    max-height: 52px;
+    padding: 4px 6px;
+  }
+
+  body.mobile-ui .mobile-modal-window {
+    max-height: 78dvh;
+  }
+}

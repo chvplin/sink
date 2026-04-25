@@ -584,6 +584,222 @@
       }
     }
 
+    async searchProfilesForFriends(rawQuery) {
+      if (!this.supabase || !this.user) return [];
+      const q = String(rawQuery || "")
+        .trim()
+        .slice(0, 64);
+      if (q.length < 2) return [];
+      try {
+        const { data, error } = await this.supabase
+          .from("public_profiles")
+          .select("user_id, display_name")
+          .ilike("display_name", `%${q}%`)
+          .neq("user_id", this.user.id)
+          .limit(20);
+        if (error || !Array.isArray(data)) {
+          if (error) console.warn("searchProfilesForFriends failed.", error);
+          return [];
+        }
+        return data.map((r) => ({
+          userId: r.user_id,
+          displayName: r.display_name || "Player"
+        }));
+      } catch (e) {
+        console.warn("searchProfilesForFriends error.", e);
+        return [];
+      }
+    }
+
+    async fetchFriendRequestRows() {
+      if (!this.supabase || !this.user) return [];
+      try {
+        const uid = this.user.id;
+        const { data, error } = await this.supabase
+          .from("friend_requests")
+          .select("*")
+          .or(`sender_id.eq.${uid},receiver_id.eq.${uid}`)
+          .order("created_at", { ascending: false });
+        if (error || !Array.isArray(data)) {
+          if (error) console.warn("fetchFriendRequestRows failed.", error);
+          return [];
+        }
+        return data;
+      } catch (e) {
+        console.warn("fetchFriendRequestRows error.", e);
+        return [];
+      }
+    }
+
+    async sendFriendRequest(receiverUserId) {
+      if (!this.supabase || !this.user) return { ok: false, message: "Not signed in." };
+      if (!receiverUserId || receiverUserId === this.user.id) return { ok: false, message: "Invalid player." };
+      try {
+        const rows = await this.fetchFriendRequestRows();
+        const hasAccepted = rows.some(
+          (r) =>
+            r.status === "accepted" &&
+            ((r.sender_id === this.user.id && r.receiver_id === receiverUserId) ||
+              (r.sender_id === receiverUserId && r.receiver_id === this.user.id))
+        );
+        if (hasAccepted) return { ok: false, message: "Already friends." };
+        const pendingAB = rows.find(
+          (r) => r.status === "pending" && r.sender_id === this.user.id && r.receiver_id === receiverUserId
+        );
+        if (pendingAB) return { ok: false, message: "Request already sent." };
+        const pendingBA = rows.find(
+          (r) => r.status === "pending" && r.sender_id === receiverUserId && r.receiver_id === this.user.id
+        );
+        if (pendingBA) return { ok: false, message: "This player already invited you — check Incoming." };
+        const { error } = await this.supabase.from("friend_requests").insert({
+          sender_id: this.user.id,
+          receiver_id: receiverUserId,
+          status: "pending"
+        });
+        if (error) {
+          if (String(error.code) === "23505") return { ok: false, message: "Request already exists." };
+          return { ok: false, message: error.message || "Could not send request." };
+        }
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, message: String(e && e.message ? e.message : e) };
+      }
+    }
+
+    async respondFriendRequest(requestId, accept) {
+      if (!this.supabase || !this.user) return { ok: false, message: "Not signed in." };
+      try {
+        const { data: row, error: fetchErr } = await this.supabase
+          .from("friend_requests")
+          .select("*")
+          .eq("id", requestId)
+          .maybeSingle();
+        if (fetchErr || !row) return { ok: false, message: "Request not found." };
+        if (row.receiver_id !== this.user.id) return { ok: false, message: "Not allowed." };
+        if (row.status !== "pending") return { ok: false, message: "Request is no longer pending." };
+        const now = new Date().toISOString();
+        if (accept) {
+          const { error: upErr } = await this.supabase
+            .from("friend_requests")
+            .update({ status: "accepted", updated_at: now })
+            .eq("id", requestId);
+          if (upErr) return { ok: false, message: upErr.message || "Update failed." };
+          await this.supabase
+            .from("friend_requests")
+            .delete()
+            .eq("sender_id", row.receiver_id)
+            .eq("receiver_id", row.sender_id)
+            .eq("status", "pending");
+        } else {
+          const { error: upErr } = await this.supabase
+            .from("friend_requests")
+            .update({ status: "declined", updated_at: now })
+            .eq("id", requestId);
+          if (upErr) return { ok: false, message: upErr.message || "Update failed." };
+        }
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, message: String(e && e.message ? e.message : e) };
+      }
+    }
+
+    async removeFriendship(friendUserId) {
+      if (!this.supabase || !this.user) return { ok: false, message: "Not signed in." };
+      if (!friendUserId || friendUserId === this.user.id) return { ok: false, message: "Invalid player." };
+      try {
+        const me = this.user.id;
+        await this.supabase
+          .from("friend_requests")
+          .delete()
+          .match({ sender_id: me, receiver_id: friendUserId, status: "accepted" });
+        const { error } = await this.supabase
+          .from("friend_requests")
+          .delete()
+          .match({ sender_id: friendUserId, receiver_id: me, status: "accepted" });
+        if (error) return { ok: false, message: error.message };
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, message: String(e && e.message ? e.message : e) };
+      }
+    }
+
+    async fetchTransferHistory(limit = 40) {
+      if (!this.supabase || !this.user) return [];
+      const uid = this.user.id;
+      try {
+        const { data, error } = await this.supabase
+          .from("player_transfers")
+          .select("id, sender_id, receiver_id, amount, status, created_at")
+          .or(`sender_id.eq.${uid},receiver_id.eq.${uid}`)
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (error || !Array.isArray(data)) {
+          if (error) console.warn("fetchTransferHistory failed.", error);
+          return [];
+        }
+        const ids = new Set();
+        data.forEach((r) => {
+          ids.add(r.sender_id);
+          ids.add(r.receiver_id);
+        });
+        const idList = Array.from(ids).filter(Boolean);
+        let names = {};
+        if (idList.length) {
+          const { data: profs } = await this.supabase.from("public_profiles").select("user_id, display_name").in("user_id", idList);
+          if (Array.isArray(profs)) {
+            names = Object.fromEntries(profs.map((p) => [p.user_id, p.display_name || "Player"]));
+          }
+        }
+        return data.map((r) => ({
+          id: r.id,
+          amount: Number(r.amount || 0),
+          status: r.status,
+          createdAt: r.created_at,
+          direction: r.sender_id === uid ? "sent" : "received",
+          counterpartyId: r.sender_id === uid ? r.receiver_id : r.sender_id,
+          counterpartyName: names[r.sender_id === uid ? r.receiver_id : r.sender_id] || "Player"
+        }));
+      } catch (e) {
+        console.warn("fetchTransferHistory error.", e);
+        return [];
+      }
+    }
+
+    async transferToFriendRpc(receiverUserId, amount) {
+      if (!this.supabase || !this.user) return { ok: false, message: "Not signed in.", newBalance: null };
+      const amt = Number(amount);
+      if (!Number.isFinite(amt) || amt <= 0) return { ok: false, message: "Enter a valid amount.", newBalance: null };
+      try {
+        const { data, error } = await this.supabase.rpc("transfer_to_friend", {
+          p_receiver_id: receiverUserId,
+          p_amount: amt
+        });
+        if (error) return { ok: false, message: error.message || "Transfer failed.", newBalance: null };
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row) return { ok: false, message: "No response from server.", newBalance: null };
+        const ok = row.success === true || row.success === "t" || row.success === "true";
+        const msg = row.message || (ok ? "OK" : "Transfer failed.");
+        const rawNb = row.new_balance != null ? row.new_balance : row.newBalance;
+        const nb = rawNb != null && rawNb !== "" ? Number(rawNb) : null;
+        return { ok, message: msg, newBalance: Number.isFinite(nb) ? nb : null };
+      } catch (e) {
+        return { ok: false, message: String(e && e.message ? e.message : e), newBalance: null };
+      }
+    }
+
+    async getDisplayNamesForUserIds(userIds) {
+      if (!this.supabase || !Array.isArray(userIds) || userIds.length === 0) return {};
+      const uniq = [...new Set(userIds.filter(Boolean))].slice(0, 80);
+      if (!uniq.length) return {};
+      try {
+        const { data, error } = await this.supabase.from("public_profiles").select("user_id, display_name").in("user_id", uniq);
+        if (error || !Array.isArray(data)) return {};
+        return Object.fromEntries(data.map((p) => [p.user_id, p.display_name || "Player"]));
+      } catch (e) {
+        return {};
+      }
+    }
+
     submitLeaderboardScore(payload) {
       const existing = JSON.parse(localStorage.getItem(LEADERBOARD_LOCAL_KEY) || "[]");
       existing.push({ ...payload, submittedAt: Date.now() });

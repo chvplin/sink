@@ -33,8 +33,27 @@
           leaderboard: document.getElementById("panel-leaderboard"),
           stats: document.getElementById("panel-stats"),
           settings: document.getElementById("panel-settings"),
-          shop: document.getElementById("panel-shop")
+          shop: document.getElementById("panel-shop"),
+          friends: document.getElementById("panel-friends")
         },
+        panelFriends: document.getElementById("panel-friends"),
+        friendsAuthNote: document.getElementById("friends-auth-note"),
+        friendsDebtNote: document.getElementById("friends-debt-note"),
+        friendsSearchForm: document.getElementById("friends-search-form"),
+        friendsSearchInput: document.getElementById("friends-search-input"),
+        friendsSearchResults: document.getElementById("friends-search-results"),
+        friendsIncomingList: document.getElementById("friends-incoming-list"),
+        friendsList: document.getElementById("friends-list"),
+        friendsTransferHistory: document.getElementById("friends-transfer-history"),
+        friendsRefreshBtn: document.getElementById("friends-refresh-btn"),
+        friendsTransferModal: document.getElementById("friends-transfer-modal"),
+        friendsTransferBackdrop: document.getElementById("friends-transfer-modal-backdrop"),
+        friendsTransferClose: document.getElementById("friends-transfer-modal-close"),
+        friendsTransferRecipient: document.getElementById("friends-transfer-recipient-name"),
+        friendsTransferBalance: document.getElementById("friends-transfer-balance"),
+        friendsTransferAmount: document.getElementById("friends-transfer-amount"),
+        friendsTransferConfirm: document.getElementById("friends-transfer-confirm"),
+        friendsTransferWarn: document.getElementById("friends-transfer-warn"),
         postRoundSummary: document.getElementById("post-round-summary"),
         postRoundSummaryDl: document.getElementById("post-round-summary-dl"),
         postRoundSummaryNext: document.getElementById("post-round-summary-next"),
@@ -84,6 +103,8 @@
       this._cosmeticShopCategory = "submarines";
       this._postRoundSummaryVisible = false;
       this._lastCountdownSec = 0;
+      this._friendsPanelBound = false;
+      this._friendsTransferLoading = false;
       this.setupResponsiveMode();
       this.bindHudChatDrawerTab();
     }
@@ -127,6 +148,9 @@
         if (historyFold) historyFold.open = !narrow;
         if (autoFold) autoFold.open = !narrow;
         this.syncHudChatDrawerLayout();
+        if (typeof window.MobileShell !== "undefined" && typeof window.MobileShell.refreshLayout === "function") {
+          window.MobileShell.refreshLayout();
+        }
       };
       apply();
       if (typeof mq.addEventListener === "function") {
@@ -749,6 +773,199 @@
         li.textContent = `${entry.name}: ${this.formatMoney(entry.amount)}`;
         this.el.liveBetsList.appendChild(li);
       });
+    }
+
+    bindFriendsPanel(controller) {
+      if (this._friendsPanelBound || !controller) return;
+      this._friendsPanelBound = true;
+      const c = controller;
+      if (this.el.friendsSearchForm) {
+        this.el.friendsSearchForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          if (typeof c.onFriendsSearch === "function") void c.onFriendsSearch();
+        });
+      }
+      if (this.el.friendsRefreshBtn) {
+        this.el.friendsRefreshBtn.addEventListener("click", () => {
+          if (typeof c.onFriendsRefresh === "function") void c.onFriendsRefresh();
+        });
+      }
+      if (this.el.panelFriends) {
+        this.el.panelFriends.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-friends-act]");
+          if (!b || !b.dataset.friendsAct) return;
+          const act = b.dataset.friendsAct;
+          if (act === "send-request" && b.dataset.userId && c.onFriendsSendRequest) void c.onFriendsSendRequest(b.dataset.userId);
+          if (act === "accept" && b.dataset.requestId && c.onFriendsAcceptRequest) void c.onFriendsAcceptRequest(b.dataset.requestId);
+          if (act === "decline" && b.dataset.requestId && c.onFriendsDeclineRequest) void c.onFriendsDeclineRequest(b.dataset.requestId);
+          if (act === "remove" && b.dataset.userId && c.onFriendsRemove) void c.onFriendsRemove(b.dataset.userId);
+          if (act === "send-money" && b.dataset.userId && c.onFriendsOpenTransfer) {
+            c.onFriendsOpenTransfer(b.dataset.userId, b.dataset.displayName || "");
+          }
+        });
+      }
+      if (this.el.friendsTransferBackdrop) {
+        this.el.friendsTransferBackdrop.addEventListener("click", () => {
+          if (typeof c.onFriendsCloseTransfer === "function") c.onFriendsCloseTransfer();
+        });
+      }
+      if (this.el.friendsTransferClose) {
+        this.el.friendsTransferClose.addEventListener("click", () => {
+          if (typeof c.onFriendsCloseTransfer === "function") c.onFriendsCloseTransfer();
+        });
+      }
+      if (this.el.friendsTransferConfirm) {
+        this.el.friendsTransferConfirm.addEventListener("click", () => {
+          if (typeof c.onFriendsConfirmTransfer === "function") void c.onFriendsConfirmTransfer();
+        });
+      }
+    }
+
+    getFriendsSearchQuery() {
+      return this.el.friendsSearchInput && this.el.friendsSearchInput.value ? this.el.friendsSearchInput.value.trim() : "";
+    }
+
+    setFriendsTransferLoading(loading) {
+      this._friendsTransferLoading = !!loading;
+      if (this.el.friendsTransferConfirm) {
+        this.el.friendsTransferConfirm.disabled = this._friendsTransferLoading;
+        this.el.friendsTransferConfirm.textContent = this._friendsTransferLoading ? "Sending…" : "Confirm send";
+      }
+      if (this.el.friendsTransferAmount) this.el.friendsTransferAmount.disabled = this._friendsTransferLoading;
+    }
+
+    openFriendsTransferModal({ recipientName, balanceFormatted, recipientId }) {
+      this._friendsTransferRecipientId = recipientId || null;
+      if (this.el.friendsTransferRecipient) this.el.friendsTransferRecipient.textContent = recipientName || "Friend";
+      if (this.el.friendsTransferBalance) this.el.friendsTransferBalance.textContent = balanceFormatted || this.formatMoney(0);
+      if (this.el.friendsTransferAmount) this.el.friendsTransferAmount.value = "10";
+      if (this.el.friendsTransferModal) {
+        this.el.friendsTransferModal.classList.remove("hidden");
+        this.el.friendsTransferModal.setAttribute("aria-hidden", "false");
+      }
+      this.setFriendsTransferLoading(false);
+    }
+
+    closeFriendsTransferModal() {
+      this._friendsTransferRecipientId = null;
+      if (this.el.friendsTransferModal) {
+        this.el.friendsTransferModal.classList.add("hidden");
+        this.el.friendsTransferModal.setAttribute("aria-hidden", "true");
+      }
+      this.setFriendsTransferLoading(false);
+    }
+
+    getFriendsTransferRecipientId() {
+      return this._friendsTransferRecipientId || null;
+    }
+
+    getFriendsTransferAmount() {
+      const v = Number(this.el.friendsTransferAmount && this.el.friendsTransferAmount.value);
+      return Number.isFinite(v) ? v : 0;
+    }
+
+    escHtml(s) {
+      return String(s == null ? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    renderFriendsPanel(state) {
+      const st = state || {};
+      if (this.el.friendsAuthNote) {
+        this.el.friendsAuthNote.classList.toggle("hidden", !!st.authenticated);
+      }
+      if (this.el.friendsDebtNote) {
+        this.el.friendsDebtNote.classList.toggle("hidden", !st.hasDebt);
+      }
+      if (!this.el.friendsSearchResults || !this.el.friendsIncomingList || !this.el.friendsList || !this.el.friendsTransferHistory) return;
+      if (!st.authenticated) {
+        this.el.friendsSearchResults.innerHTML = "";
+        this.el.friendsIncomingList.innerHTML = "";
+        this.el.friendsList.innerHTML = "";
+        this.el.friendsTransferHistory.innerHTML = "";
+        return;
+      }
+      if (st.supabaseMissing) {
+        const msg = `<div class="friends-empty friends-empty--warn">Supabase is not connected in this build.</div>`;
+        this.el.friendsSearchResults.innerHTML = msg;
+        this.el.friendsIncomingList.innerHTML = msg;
+        this.el.friendsList.innerHTML = msg;
+        this.el.friendsTransferHistory.innerHTML = msg;
+        return;
+      }
+      const esc = (x) => this.escHtml(x);
+      const results = Array.isArray(st.searchResults) ? st.searchResults : [];
+      if (results.length === 0) {
+        this.el.friendsSearchResults.innerHTML = `<div class="friends-empty">${st.searchPerformed ? "No matches." : "Type at least 2 characters and search."}</div>`;
+      } else {
+        this.el.friendsSearchResults.innerHTML = results
+          .map((r) => {
+            const uid = String(r.userId || "").replace(/"/g, "");
+            const nm = esc(r.displayName || "Player");
+            let actions = "";
+            if (r.relation === "friends") {
+              actions = `<button type="button" class="friends-btn friends-btn--small" disabled>Friends</button>`;
+            } else if (r.relation === "sent") {
+              actions = `<button type="button" class="friends-btn friends-btn--small" disabled>Request sent</button>`;
+            } else if (r.relation === "incoming") {
+              actions = `<span class="friends-chip">Incoming — see below</span>`;
+            } else {
+              actions = `<button type="button" class="friends-btn friends-btn--small" data-friends-act="send-request" data-user-id="${uid}">Send request</button>`;
+            }
+            return `<div class="friends-card"><div class="friends-card__name">${nm}</div><div class="friends-card__actions">${actions}</div></div>`;
+          })
+          .join("");
+      }
+      const incoming = Array.isArray(st.incoming) ? st.incoming : [];
+      if (incoming.length === 0) {
+        this.el.friendsIncomingList.innerHTML = `<div class="friends-empty">No incoming requests.</div>`;
+      } else {
+        this.el.friendsIncomingList.innerHTML = incoming
+          .map((r) => {
+            const nm = esc(r.senderName || "Player");
+            const rid = String(r.id || "").replace(/"/g, "");
+            return `<div class="friends-card"><div class="friends-card__name">${nm}</div><div class="friends-card__actions">
+              <button type="button" class="friends-btn friends-btn--small friends-btn--primary" data-friends-act="accept" data-request-id="${rid}">Accept</button>
+              <button type="button" class="friends-btn friends-btn--small" data-friends-act="decline" data-request-id="${rid}">Decline</button>
+            </div></div>`;
+          })
+          .join("");
+      }
+      const friends = Array.isArray(st.friends) ? st.friends : [];
+      if (friends.length === 0) {
+        this.el.friendsList.innerHTML = `<div class="friends-empty">No friends yet.</div>`;
+      } else {
+        this.el.friendsList.innerHTML = friends
+          .map((f) => {
+            const uid = String(f.userId || "").replace(/"/g, "");
+            const nm = esc(f.displayName || "Player");
+            const online = f.online
+              ? `<span class="friends-online" title="Online">●</span>`
+              : `<span class="friends-offline" title="Status unknown">○</span>`;
+            const moneyDisabled = st.transferBlocked ? "disabled" : "";
+            return `<div class="friends-card"><div class="friends-card__name">${online} ${nm}</div><div class="friends-card__actions">
+              <button type="button" class="friends-btn friends-btn--small friends-btn--primary" data-friends-act="send-money" data-user-id="${uid}" data-display-name="${nm}" ${moneyDisabled}>Send money</button>
+              <button type="button" class="friends-btn friends-btn--small" data-friends-act="remove" data-user-id="${uid}">Remove</button>
+            </div></div>`;
+          })
+          .join("");
+      }
+      const hist = Array.isArray(st.transferHistory) ? st.transferHistory : [];
+      if (hist.length === 0) {
+        this.el.friendsTransferHistory.innerHTML = `<li class="friends-empty">No transfers yet.</li>`;
+      } else {
+        this.el.friendsTransferHistory.innerHTML = hist
+          .map((h) => {
+            const dir = h.direction === "sent" ? "Sent" : "Received";
+            const amt = this.formatMoney(h.amount || 0);
+            const who = esc(h.counterpartyName || "Player");
+            const dt = esc(h.createdAtLabel || "");
+            return `<li class="friends-history__row"><span class="friends-history__dir">${dir}</span><span class="friends-history__who">${who}</span><span class="friends-history__amt">${amt}</span><span class="friends-history__dt">${dt}</span></li>`;
+          })
+          .join("");
+      }
     }
 
     renderStats(stats, achievementsUnlockedCount, favoriteSub) {
