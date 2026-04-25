@@ -120,6 +120,8 @@ body.mobile-ui #mobile-action-row1 {
   flex-wrap: wrap !important;
   align-items: center !important;
   gap: 8px !important;
+  position: relative !important;
+  top: -6px !important;
 }
 
 body.mobile-ui #mobile-action-row2 {
@@ -128,6 +130,8 @@ body.mobile-ui #mobile-action-row2 {
   flex-direction: row !important;
   align-items: center !important;
   gap: 8px !important;
+  position: relative !important;
+  top: -6px !important;
 }
 
 body.mobile-ui #mobile-action-row2 .action-buttons {
