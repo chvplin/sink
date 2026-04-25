@@ -1,0 +1,204 @@
+/* Mobile gameplay layout + HUD stacking — body.mobile-ui. Load last. */
+
+@media (max-width: 768px) {
+  html:has(body.mobile-ui),
+  body.mobile-ui {
+    overflow: hidden;
+    max-width: 100vw;
+    height: 100%;
+    max-height: 100dvh;
+  }
+}
+
+/* Kill leftover max-height cap from small-phone rules */
+@media (max-width: 480px) {
+  body.mobile-ui #panel-play .play-ui-column {
+    max-height: none !important;
+  }
+}
+
+/* ---- Multiplier → depth → fleet (vertical, centered) ---- */
+body.mobile-ui .multiplier-display,
+body.mobile-ui .current-multiplier,
+body.mobile-ui #multiplier-display.multiplier-value {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top, 0px) + 60px) !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  z-index: 1010 !important;
+  color: #ffd84d !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  pointer-events: none !important;
+}
+
+body.mobile-ui .depth-bar-top {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top, 0px) + 60px + 42px) !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: min(300px, calc(100vw - 24px)) !important;
+  max-width: min(300px, calc(100vw - 24px)) !important;
+  z-index: 1008 !important;
+  margin: 0 !important;
+  padding: 4px 8px !important;
+  gap: 6px !important;
+}
+
+body.mobile-ui .depth-bar-top__meter {
+  height: 8px !important;
+}
+
+body.mobile-ui .fleet-wager-widget {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top, 0px) + 60px + 42px + 34px) !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: auto !important;
+  max-width: min(280px, 92vw) !important;
+  z-index: 1008 !important;
+  margin: 0 !important;
+  padding: 4px 10px !important;
+}
+
+/* ---- Scene + HUD band below stacked HUD ---- */
+body.mobile-ui #scene-canvas,
+body.mobile-ui .surface-waves,
+body.mobile-ui #depth-tint {
+  top: calc(env(safe-area-inset-top, 0px) + 60px + 42px + 34px + 44px) !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 68px) !important;
+}
+
+body.mobile-ui .hud {
+  top: calc(env(safe-area-inset-top, 0px) + 60px + 42px + 34px + 44px) !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 68px) !important;
+}
+
+body.mobile-ui .lucky-round-banner {
+  top: calc(env(safe-area-inset-top, 0px) + 60px + 42px + 34px + 44px + 6px) !important;
+}
+
+body.mobile-ui .player-join-banner {
+  top: calc(env(safe-area-inset-top, 0px) + 60px + 42px + 34px + 44px + 36px) !important;
+}
+
+body.mobile-ui .post-round-summary {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px) !important;
+}
+
+/* ---- Bottom action bar: always tappable, above scene ---- */
+body.mobile-ui .mobile-chrome {
+  z-index: 2400;
+}
+
+body.mobile-ui #mobile-action-bar.mobile-action-bar,
+body.mobile-ui .mobile-action-bar {
+  position: fixed !important;
+  z-index: 2600 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-height: 56px !important;
+  max-height: 72px !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
+}
+
+body.mobile-ui #mobile-action-row1 {
+  flex: 1 1 120px !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+body.mobile-ui #mobile-action-row2 {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+body.mobile-ui #mobile-action-row2 .action-buttons {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+body.mobile-ui #bet-button,
+body.mobile-ui #cashout-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  height: clamp(38px, 10vw, 44px) !important;
+  min-width: 76px !important;
+  max-width: 108px !important;
+  width: auto !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  border-radius: 10px !important;
+}
+
+body.mobile-ui .mobile-top-menu {
+  z-index: 2500 !important;
+}
+
+body.mobile-ui .mobile-phase-strip {
+  z-index: 2490 !important;
+}
+
+body.mobile-ui .mobile-modal-root:not(.hidden) {
+  z-index: 4000 !important;
+}
+
+body.mobile-ui .mobile-modal-root.hidden {
+  pointer-events: none !important;
+}
+
+/* ---- Chips always receive taps ---- */
+body.mobile-ui .mobile-top-chip {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+/* ---- Landscape: keep shell insets; slightly shorter HUD stack ---- */
+@media (max-width: 932px) and (orientation: landscape) {
+  body.mobile-ui .multiplier-display,
+  body.mobile-ui .current-multiplier,
+  body.mobile-ui #multiplier-display.multiplier-value {
+    top: calc(env(safe-area-inset-top, 0px) + 52px) !important;
+    font-size: clamp(22px, 6vw, 38px) !important;
+  }
+
+  body.mobile-ui .depth-bar-top {
+    top: calc(env(safe-area-inset-top, 0px) + 52px + 36px) !important;
+  }
+
+  body.mobile-ui .fleet-wager-widget {
+    top: calc(env(safe-area-inset-top, 0px) + 52px + 36px + 30px) !important;
+  }
+
+  body.mobile-ui #scene-canvas,
+  body.mobile-ui .surface-waves,
+  body.mobile-ui #depth-tint,
+  body.mobile-ui .hud {
+    top: calc(env(safe-area-inset-top, 0px) + 52px + 36px + 30px + 40px) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
+  }
+}

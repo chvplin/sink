@@ -1083,14 +1083,19 @@ html, body {
   overflow: hidden;
 }
 
+/* Portrait: no duplicate “scene slab” — canvas is fixed in #game-root; this column is HUD-only */
 .mobile-ui #panel-play .play-stage {
-  display: block !important;
-  flex: 0 0 var(--mobile-viewport-h);
-  min-height: var(--mobile-viewport-h);
-  max-height: 60dvh;
+  display: none !important;
+  flex: 0 0 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  height: 0 !important;
   width: 100%;
   order: -1;
-  pointer-events: none;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
   background: transparent !important;
 }
 
@@ -1100,25 +1105,22 @@ html, body {
   right: auto;
   bottom: auto;
   z-index: 22;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
-  max-height: var(--mobile-controls-cap);
+  max-height: none;
   width: 100%;
   max-width: 100%;
   margin: 0;
-  padding: 6px 8px 8px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  border-radius: var(--play-card-radius);
-  border: 1px solid rgba(232, 197, 71, 0.22);
-  background: linear-gradient(180deg, rgba(6, 14, 30, 0.92), rgba(4, 10, 22, 0.96));
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
+  padding: 0;
+  overflow: visible;
+  border-radius: 0;
+  border: none;
+  background: transparent !important;
+  box-shadow: none;
   gap: var(--play-stack-gap);
   display: flex;
   flex-direction: column;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 @media (max-width: 768px) and (orientation: portrait) {
@@ -1216,6 +1218,7 @@ html, body {
 
   /* Scene: full left cell; submarine canvas shows through */
   body.mobile-ui #panel-play .play-stage {
+    display: block !important;
     grid-column: 1;
     grid-row: 1;
     order: unset !important;

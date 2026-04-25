@@ -73,6 +73,8 @@
 
   function closeMobileModal() {
     const root = document.getElementById("mobile-modal-root");
+    const body = document.getElementById("mobile-modal-body");
+    if (body) body.querySelectorAll("[data-mobile-placeholder]").forEach((n) => n.remove());
     modalNodes.slice().forEach((n) => restoreOne(n));
     modalNodes = [];
     if (root) {
@@ -109,13 +111,23 @@
     if (!selectors) return;
 
     const nodes = getEls(selectors);
-    if (!nodes.length) return;
-
-    nodes.forEach((n) => {
-      anchor(n);
-      body.appendChild(n);
-      modalNodes.push(n);
-    });
+    let hadPanelNodes = false;
+    if (!nodes.length) {
+      const p = document.createElement("p");
+      p.dataset.mobilePlaceholder = "1";
+      p.textContent = "Coming soon.";
+      p.style.margin = "0";
+      p.style.fontSize = "14px";
+      p.style.color = "rgba(255,255,255,0.75)";
+      body.appendChild(p);
+    } else {
+      hadPanelNodes = true;
+      nodes.forEach((n) => {
+        anchor(n);
+        body.appendChild(n);
+        modalNodes.push(n);
+      });
+    }
 
     if (titleEl) titleEl.textContent = MODAL_TITLES[panelId] || panelId;
     root.dataset.panel = panelId;
@@ -132,13 +144,13 @@
       }
     }
 
-    if (panelId === "friends" && typeof window.__gameMobileFriendsOpen === "function") {
+    if (hadPanelNodes && panelId === "friends" && typeof window.__gameMobileFriendsOpen === "function") {
       window.__gameMobileFriendsOpen();
     }
-    if (panelId === "shop" && typeof window.__gameMobileShopOpen === "function") {
+    if (hadPanelNodes && panelId === "shop" && typeof window.__gameMobileShopOpen === "function") {
       window.__gameMobileShopOpen();
     }
-    if (panelId === "board" && typeof window.__gameMobileBoardOpen === "function") {
+    if (hadPanelNodes && panelId === "board" && typeof window.__gameMobileBoardOpen === "function") {
       window.__gameMobileBoardOpen();
     }
   }
@@ -187,21 +199,14 @@
 
   function bindTopMenu() {
     const top = document.getElementById("mobile-top-menu");
-    if (!top) return;
-    top.addEventListener(
-      "click",
-      (e) => {
-        const btn = e.target.closest("[data-mobile-modal]");
-        if (!btn) return;
-        const id = btn.getAttribute("data-mobile-modal");
-        if (id) {
-          e.preventDefault();
-          e.stopPropagation();
-          openMobileModal(id);
-        }
-      },
-      true
-    );
+    if (!top || top.dataset.mobileMenuBound === "1") return;
+    top.dataset.mobileMenuBound = "1";
+    top.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-mobile-modal]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-mobile-modal");
+      if (id) openMobileModal(id);
+    });
   }
 
   function init() {
