@@ -73,7 +73,12 @@
     _agentDbgTickLogAt: 0,
     _serverModeRetryAt: 0,
     _lastFailsafeTickAt: 0,
-    _lastGlobalRefetchAt: 0
+    _lastGlobalRefetchAt: 0,
+    _lastLiveBetsSnapshot: [],
+    postRoundSummaryVisible: false,
+    _postRoundSummaryRoundSeq: null,
+    _sessionCashoutMult: null,
+    _sessionCashoutPayout: null
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
@@ -172,8 +177,167 @@
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
 
   function getEquippedSkin() {
+    const catalog = content.COSMETIC_SHOP_ITEMS || [];
+    const subId = profile.equippedCosmetics && profile.equippedCosmetics.submarine;
+    if (subId) {
+      const item = catalog.find((i) => i.id === subId && i.category === "submarines");
+      if (item && item.skinMap) {
+        const byCosmetic = content.SUBMARINE_SKINS.find((s) => s.id === item.skinMap);
+        if (byCosmetic) return byCosmetic;
+      }
+    }
     return content.SUBMARINE_SKINS.find((s) => s.id === profile.equippedSkinId) || content.SUBMARINE_SKINS[0];
   }
+
+  function getCosmeticVisualState() {
+    const catalog = content.COSMETIC_SHOP_ITEMS || [];
+    const ec = profile.equippedCosmetics || {};
+    const trailItem = ec.trail ? catalog.find((i) => i.id === ec.trail && i.category === "trails") : null;
+    const crashItem = ec.crashEffect ? catalog.find((i) => i.id === ec.crashEffect && i.category === "crashEffects") : null;
+    const diverItem = ec.diverSuit ? catalog.find((i) => i.id === ec.diverSuit && i.category === "diverSuits") : null;
+    return {
+      trailKey: trailItem && trailItem.trailKey ? trailItem.trailKey : "default",
+      crashKey: crashItem && crashItem.crashKey ? crashItem.crashKey : "default",
+      diverKey: diverItem && diverItem.diverKey ? diverItem.diverKey : "default"
+    };
+  }
+
+  function dismissPostRoundSummary() {
+    gameState.postRoundSummaryVisible = false;
+    gameState._postRoundSummaryRoundSeq = null;
+    gameState._sessionCashoutMult = null;
+    gameState._sessionCashoutPayout = null;
+    ui.hidePostRoundSummary();
+  }
+
+  function maybeShowPostRoundSummary(ctx) {
+    const rows = [];
+    const isPractice = !!ctx.isPractice;
+    let outcome = "Spectated";
+    if (isPractice && ctx.hadBet) outcome = "Practice (no balance)";
+    else if (!ctx.hadBet) outcome = "Spectated";
+    else if (ctx.cashed) outcome = "Won";
+    else outcome = "Lost";
+
+    rows.push(["Crash", `${ctx.crashMult.toFixed(2)}×`]);
+    rows.push(["Your result", outcome]);
+    rows.push(["Bet", ctx.hadBet ? ui.formatMoney(ctx.betAmount) : "—"]);
+
+    let cashMultLabel = "—";
+    let payoutLabel = "—";
+    if (ctx.cashed && ctx.sessionCashoutMult != null) {
+      cashMultLabel = `${Number(ctx.sessionCashoutMult).toFixed(2)}×`;
+      payoutLabel = isPractice ? "— (practice)" : ui.formatMoney(Number(ctx.sessionCashoutPayout) || 0);
+    }
+    rows.push(["Cashout mult", cashMultLabel]);
+    rows.push(["Payout", payoutLabel]);
+
+    let profitLabel = "—";
+    if (ctx.hadBet && !isPractice) {
+      if (ctx.cashed) profitLabel = ui.formatMoney((Number(ctx.sessionCashoutPayout) || 0) - ctx.betAmount);
+      else profitLabel = ui.formatMoney(-ctx.betAmount);
+    } else if (ctx.hadBet && isPractice) {
+      profitLabel = "—";
+    }
+    rows.push(["Profit / loss", profitLabel]);
+
+    const snap = ctx.liveSnap || [];
+    if (snap.length) {
+      const top = snap.reduce((best, cur) => (cur.amount > best.amount ? cur : best), snap[0]);
+      rows.push(["Largest live stake", `${top.name || "Player"} · ${ui.formatMoney(top.amount)}`]);
+      rows.push(["On live board (active)", `${snap.length} player(s)`]);
+      rows.push(["Cashed out / imploded (live)", "No aggregate data this round."]);
+    } else {
+      rows.push(["Fleet live data", "No player data this round."]);
+    }
+
+    gameState.postRoundSummaryVisible = true;
+    gameState._postRoundSummaryRoundSeq = ctx.roundSeqNum;
+    ui.showPostRoundSummary({ rows, nextDiveText: "" });
+  }
+
+  function renderCosmeticShopPanel() {
+    const catalog = content.COSMETIC_SHOP_ITEMS;
+    if (!catalog || !ui.el.panelShop) return;
+    ui.renderCosmeticShop(profile, catalog, {
+      onPreview(item) {
+        if (!ui.el.shopPreviewBody) return;
+        ui.el.shopPreviewBody.textContent = "";
+        const wrap = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = item.name || "";
+        const meta = document.createElement("div");
+        meta.className = "cosmetic-shop-card__meta";
+        meta.textContent = `${item.rarity || "Common"} · ${item.price <= 0 ? "Starter" : ui.formatMoney(item.price)}`;
+        wrap.appendChild(title);
+        wrap.appendChild(meta);
+        ui.el.shopPreviewBody.appendChild(wrap);
+      }
+    });
+  }
+
+  function onCosmeticShopCategory(cat) {
+    ui.setCosmeticShopCategory(cat);
+    renderCosmeticShopPanel();
+  }
+
+  function buyCosmeticItem(itemId) {
+    const catalog = content.COSMETIC_SHOP_ITEMS || [];
+    const item = catalog.find((i) => i.id === itemId);
+    if (!item) {
+      ui.showToast("Shop", "Item not found.");
+      return;
+    }
+    const ownedArr = profile.ownedCosmetics[item.category] || [];
+    if (ownedArr.includes(itemId)) {
+      ui.showToast("Shop", "You already own this.");
+      return;
+    }
+    if (item.price > 0 && profile.balance < item.price) {
+      ui.showToast("Shop", "Insufficient balance.");
+      return;
+    }
+    if (item.price > 0) profile.balance = Number((profile.balance - item.price).toFixed(2));
+    profile.ownedCosmetics[item.category] = [...ownedArr, itemId];
+    saveAll();
+    ui.showToast("Shop", `Purchased ${item.name}.`);
+    ui.setBalance(profile.balance);
+    renderCosmeticShopPanel();
+    renderAllPanels();
+  }
+
+  function equipCosmeticItem(itemId) {
+    const catalog = content.COSMETIC_SHOP_ITEMS || [];
+    const item = catalog.find((i) => i.id === itemId);
+    if (!item) {
+      ui.showToast("Shop", "Item not found.");
+      return;
+    }
+    const ownedArr = profile.ownedCosmetics[item.category] || [];
+    if (!ownedArr.includes(itemId)) {
+      ui.showToast("Shop", "Equip after purchase.");
+      return;
+    }
+    const slotMap = {
+      submarines: "submarine",
+      trails: "trail",
+      diverSuits: "diverSuit",
+      crashEffects: "crashEffect",
+      profileFrames: "profileFrame"
+    };
+    const slot = slotMap[item.category];
+    if (!slot) return;
+    profile.equippedCosmetics[slot] = itemId;
+    saveAll();
+    ui.showToast("Shop", `Equipped ${item.name}.`);
+    renderCosmeticShopPanel();
+    renderAllPanels();
+  }
+
+  function onPostRoundSummaryClose() {
+    dismissPostRoundSummary();
+  }
+
   function didPlayerParticipateInRound() {
     const p = gameState.roundParticipation;
     return p.playerBetPlaced && p.playerJoinedRound && p.betAmount > 0;
@@ -266,6 +430,8 @@
     ui.setBalance(profile.balance);
     ui.setStreaks(profile.streaks.win, profile.streaks.dailyLogin);
     ui.renderCollection(content.SUBMARINE_SKINS, profile.unlockedSkinIds, profile.equippedSkinId);
+    ui.applyProfileFrame(profile);
+    renderCosmeticShopPanel();
     ui.renderChallengePanels(profile.challenges.daily, profile.challenges.weekly);
     ui.renderAchievements(content.ACHIEVEMENTS, new Set(profile.achievementsUnlocked));
     ui.renderLeaderboard([]);
@@ -345,6 +511,7 @@
       syncLog("Blocked legacy beginPreRound() in global mode");
       return;
     }
+    dismissPostRoundSummary();
     gameState.stallRecoveryAttemptForRound = "";
     const roundRng = createRoundRng(gameState.nonce + 1);
     gameState.phase = "preRound";
@@ -483,6 +650,19 @@
 
   /** Shared UI + payouts when a round ends at crashPoint (host drives publish/schedule). */
   function runLocalCrashPresentation() {
+    const liveSnap = Array.isArray(gameState._lastLiveBetsSnapshot) ? gameState._lastLiveBetsSnapshot.slice() : [];
+    const roundSeqNum = Number(String(gameState.roundId || "").replace(/^round-/, "")) || null;
+    const rp = gameState.roundParticipation;
+    const betAmount = Number(rp.betAmount || gameState.activeBet || 0);
+    const joined = !!rp.playerJoinedRound;
+    const betPlaced = !!rp.playerBetPlaced;
+    const hadBet = betPlaced && joined && betAmount > 0;
+    const cashed = !!gameState.hasCashedOut;
+    const crashMult = gameState.crashPoint;
+    const isPractice = gameState.roundMode === "free_play";
+    const sessionCashoutMult = gameState._sessionCashoutMult;
+    const sessionCashoutPayout = gameState._sessionCashoutPayout;
+
     gameState.currentMultiplier = gameState.crashPoint;
     gameState.lastCrash = gameState.crashPoint;
     ui.setCrashPoint(gameState.crashPoint);
@@ -506,6 +686,18 @@
     ui.setLuckyRound(false);
     animations.triggerCrashExplosion();
     updateCashOutButtonState();
+
+    maybeShowPostRoundSummary({
+      liveSnap,
+      roundSeqNum,
+      hadBet,
+      cashed,
+      betAmount,
+      crashMult,
+      isPractice,
+      sessionCashoutMult,
+      sessionCashoutPayout
+    });
   }
 
   function crashRound({ publish = true, scheduleNextRound = true } = {}) {
@@ -531,6 +723,7 @@
   }
 
   function syncServerNewCountdownRow(row) {
+    dismissPostRoundSummary();
     gameState.stallRecoveryAttemptForRound = "";
     gameState.phase = "preRound";
     gameState.roundMode = "normal";
@@ -721,6 +914,9 @@
     gameState.countdownStartMs = cdStart;
 
     if (gamePhase === "preRound") {
+      if (prevPhase === "crashed" && gameState.postRoundSummaryVisible) {
+        dismissPostRoundSummary();
+      }
       if (gameState._serverCountdownSyncedSeq !== seq) {
         syncServerNewCountdownRow(row);
       }
@@ -1021,6 +1217,8 @@
     gameState.roundParticipation.playerCashedOut = true;
     const bonus = gameState.isLuckyRound ? CONFIG.LUCKY_ROUND_PAYOUT_BONUS : 1;
     const winnings = Number((gameState.activeBet * gameState.currentMultiplier * bonus).toFixed(2));
+    gameState._sessionCashoutMult = gameState.currentMultiplier;
+    gameState._sessionCashoutPayout = winnings;
     if (gameState.roundMode === "free_play") {
       ui.showToast("Practice Dive", "Training cashout — no balance change.");
     } else if (window.PlayerRecovery) {
@@ -1043,7 +1241,7 @@
     ui.setBalance(profile.balance);
     ui.setPhase(source === "auto" ? "Auto cash out successful!" : "Cash out successful!");
     ui.setBetInfo(0, winnings);
-    animations.spawnCashoutDiver(winnings);
+    animations.spawnCashoutDiver(winnings, getCosmeticVisualState().diverKey);
     if (gameState.roundMode !== "free_play") publishLiveBet("cashed");
     updateCashOutButtonState();
     saveAll();
@@ -1261,6 +1459,7 @@
     if (!force && now - gameState.lastLiveBetsSyncAt < 1200) return;
     gameState.lastLiveBetsSyncAt = now;
     const bets = await dataService.fetchLiveBets(gameState.roundId);
+    gameState._lastLiveBetsSnapshot = Array.isArray(bets) ? bets.map((b) => ({ name: b.name, amount: Number(b.amount) || 0 })) : [];
     ui.renderLiveBets(bets);
   }
 
@@ -1411,14 +1610,22 @@
     const depthNorm = depthNormFromMultiplier(gameState.currentMultiplier);
     ui.setMultiplier(gameState.currentMultiplier);
     ui.setDepth(depthNorm);
+    const cv = getCosmeticVisualState();
     animations.setSceneState({
       multiplier: gameState.currentMultiplier,
       depthNorm,
       isActiveRound: gameState.phase === "active",
       didCrash: gameState.didCrash,
       isLuckyRound: gameState.isLuckyRound && gameState.phase === "active",
-      equippedSkin: getEquippedSkin().colors
+      equippedSkin: getEquippedSkin().colors,
+      cosmeticTrail: cv.trailKey,
+      cosmeticCrash: cv.crashKey,
+      cosmeticDiver: cv.diverKey
     });
+    if (ui.isPostRoundSummaryVisible()) {
+      const sec = ui.getCountdownSeconds();
+      ui.updatePostRoundNextLine(`Next dive starts in ${sec.toFixed(1)}s`);
+    }
   }
 
   function runCrashDistributionTest(rounds = 100) {
@@ -1465,7 +1672,11 @@
       onLeaderboardTabChange,
       onSignOut,
       openRecoveryHub,
-      onChatSubmit
+      onChatSubmit,
+      buyCosmeticItem,
+      equipCosmeticItem,
+      onCosmeticShopCategory,
+      onPostRoundSummaryClose
     });
     ui.bindRecoveryHub(onRecoveryAction);
     document.addEventListener("click", (event) => {
@@ -1480,6 +1691,11 @@
       renderAllPanels();
     });
     renderAllPanels();
+    document.querySelectorAll('[data-tab="shop"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        renderCosmeticShopPanel();
+      });
+    });
     if (typeof dataService.syncFromBackend === "function") {
       dataService.syncFromBackend().then((remoteProfile) => {
         if (!remoteProfile) return;

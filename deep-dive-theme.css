@@ -2049,3 +2049,245 @@ html, body {
 .mobile-ui .fleet-wager-widget__amount {
   font-size: clamp(0.78rem, 3.2vw, 0.92rem);
 }
+
+/* Post-round summary (read-only; does not cover full viewport) */
+.post-round-summary {
+  position: fixed;
+  z-index: 45;
+  right: max(8px, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--dock-h) + var(--fairness-h) + 12px);
+  max-width: min(320px, calc(100vw - 16px));
+  pointer-events: auto;
+}
+
+.post-round-summary.hidden {
+  display: none;
+}
+
+.post-round-summary__card {
+  position: relative;
+  background: var(--dd-hud);
+  border: 1px solid var(--dd-rim);
+  border-radius: var(--play-card-radius);
+  padding: 10px 12px 10px 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+}
+
+.post-round-summary__close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dd-text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.post-round-summary__title {
+  margin: 0 28px 6px 0;
+  font-size: 0.95rem;
+  color: var(--dd-gold);
+}
+
+.post-round-summary__dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  font-size: 0.78rem;
+}
+
+.post-round-summary__dl dt {
+  margin: 0;
+  color: var(--dd-muted);
+}
+
+.post-round-summary__dl dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+}
+
+.post-round-summary__next {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--dd-teal);
+}
+
+.mobile-ui .post-round-summary {
+  right: 6px;
+  left: 6px;
+  max-width: none;
+  bottom: calc(var(--dock-h) + var(--fairness-h) + 8px);
+}
+
+.mobile-ui .post-round-summary__card {
+  padding: 8px 10px;
+}
+
+.mobile-ui .post-round-summary__dl {
+  font-size: 0.72rem;
+}
+
+/* Profile frame (cosmetic) */
+.bank-profile-frame {
+  border-radius: 14px;
+  padding: 2px;
+}
+
+.bank-profile-frame--captain {
+  box-shadow: 0 0 0 2px rgba(232, 197, 71, 0.85), 0 0 14px rgba(232, 197, 71, 0.35);
+}
+
+.bank-profile-frame--none {
+  box-shadow: none;
+}
+
+/* Cosmetic shop tab */
+.cosmetic-shop-panel {
+  max-height: 80dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.cosmetic-shop-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cosmetic-shop-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.cosmetic-shop-balance {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--dd-muted);
+}
+
+.cosmetic-shop-preview {
+  flex: 0 0 auto;
+  background: var(--dd-glass);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.cosmetic-shop-preview__label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--dd-muted);
+  margin-bottom: 4px;
+}
+
+.cosmetic-shop-preview__body {
+  min-height: 48px;
+  font-size: 0.8rem;
+}
+
+.cosmetic-shop-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cosmetic-shop-cat {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dd-text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.cosmetic-shop-cat.active {
+  border-color: var(--dd-teal);
+  background: rgba(45, 226, 230, 0.12);
+}
+
+.cosmetic-shop-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.cosmetic-shop-card {
+  background: var(--dd-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+}
+
+.cosmetic-shop-card__name {
+  font-weight: 600;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.cosmetic-shop-card__meta {
+  color: var(--dd-muted);
+}
+
+.cosmetic-shop-rarity {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cosmetic-shop-rarity--Common { color: #b8c8d8; }
+.cosmetic-shop-rarity--Rare { color: #6ecbff; }
+.cosmetic-shop-rarity--Epic { color: #c98bff; }
+.cosmetic-shop-rarity--Legendary { color: var(--dd-gold); }
+
+.cosmetic-shop-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.cosmetic-shop-card__actions button {
+  flex: 1 1 auto;
+  min-height: 30px;
+  font-size: 0.72rem;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--dd-text);
+  cursor: pointer;
+}
+
+.cosmetic-shop-card__actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.cosmetic-shop-card--equipped {
+  border-color: rgba(45, 226, 230, 0.55);
+}

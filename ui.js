@@ -32,8 +32,19 @@
           achievements: document.getElementById("panel-achievements"),
           leaderboard: document.getElementById("panel-leaderboard"),
           stats: document.getElementById("panel-stats"),
-          settings: document.getElementById("panel-settings")
+          settings: document.getElementById("panel-settings"),
+          shop: document.getElementById("panel-shop")
         },
+        postRoundSummary: document.getElementById("post-round-summary"),
+        postRoundSummaryDl: document.getElementById("post-round-summary-dl"),
+        postRoundSummaryNext: document.getElementById("post-round-summary-next"),
+        postRoundSummaryClose: document.getElementById("post-round-summary-close"),
+        bankProfileFrame: document.getElementById("bank-profile-frame"),
+        shopBalance: document.getElementById("shop-balance-display"),
+        shopCategories: document.getElementById("cosmetic-shop-categories"),
+        shopGrid: document.getElementById("cosmetic-shop-grid"),
+        shopPreviewBody: document.getElementById("cosmetic-shop-preview-body"),
+        panelShop: document.getElementById("panel-shop"),
         collectionGrid: document.getElementById("collection-grid"),
         dailyChallenges: document.getElementById("daily-challenges"),
         weeklyChallenges: document.getElementById("weekly-challenges"),
@@ -70,6 +81,9 @@
       };
       this.currentLeaderboardTab = "highestMultiplier";
       this._hudChatTabBound = false;
+      this._cosmeticShopCategory = "submarines";
+      this._postRoundSummaryVisible = false;
+      this._lastCountdownSec = 0;
       this.setupResponsiveMode();
       this.bindHudChatDrawerTab();
     }
@@ -180,6 +194,140 @@
           controller.onLeaderboardTabChange(this.currentLeaderboardTab);
         });
       });
+
+      if (this.el.postRoundSummaryClose) {
+        this.el.postRoundSummaryClose.addEventListener("click", () => {
+          if (typeof controller.onPostRoundSummaryClose === "function") controller.onPostRoundSummaryClose();
+        });
+      }
+
+      if (this.el.panelShop) {
+        this.el.panelShop.addEventListener("click", (e) => {
+          const buyBtn = e.target.closest("[data-shop-buy]");
+          const equipBtn = e.target.closest("[data-shop-equip]");
+          if (buyBtn && buyBtn.dataset.shopBuy && controller.buyCosmeticItem) controller.buyCosmeticItem(buyBtn.dataset.shopBuy);
+          if (equipBtn && equipBtn.dataset.shopEquip && controller.equipCosmeticItem) controller.equipCosmeticItem(equipBtn.dataset.shopEquip);
+        });
+      }
+      if (this.el.shopCategories) {
+        this.el.shopCategories.addEventListener("click", (e) => {
+          const catBtn = e.target.closest("[data-shop-cat]");
+          if (catBtn && catBtn.dataset.shopCat && controller.onCosmeticShopCategory) controller.onCosmeticShopCategory(catBtn.dataset.shopCat);
+        });
+      }
+    }
+
+    getCosmeticShopCategory() {
+      return this._cosmeticShopCategory || "submarines";
+    }
+
+    setCosmeticShopCategory(cat) {
+      this._cosmeticShopCategory = cat || "submarines";
+    }
+
+    showPostRoundSummary(payload) {
+      if (!this.el.postRoundSummary || !this.el.postRoundSummaryDl) return;
+      this._postRoundSummaryVisible = true;
+      const esc = (s) =>
+        String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/"/g, "&quot;");
+      const rows = (payload.rows || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+      this.el.postRoundSummaryDl.innerHTML = rows;
+      this.updatePostRoundNextLine(payload.nextDiveText || "");
+      this.el.postRoundSummary.classList.remove("hidden");
+    }
+
+    hidePostRoundSummary() {
+      this._postRoundSummaryVisible = false;
+      if (this.el.postRoundSummary) this.el.postRoundSummary.classList.add("hidden");
+    }
+
+    isPostRoundSummaryVisible() {
+      return !!this._postRoundSummaryVisible;
+    }
+
+    updatePostRoundNextLine(text) {
+      if (this.el.postRoundSummaryNext) this.el.postRoundSummaryNext.textContent = text || "";
+    }
+
+    applyProfileFrame(profile) {
+      const frame = this.el.bankProfileFrame;
+      if (!frame) return;
+      frame.classList.remove("bank-profile-frame--captain", "bank-profile-frame--none");
+      const ec = profile && profile.equippedCosmetics;
+      const id = ec && ec.profileFrame;
+      if (id === "captain_profile_frame") {
+        frame.classList.add("bank-profile-frame--captain");
+      } else {
+        frame.classList.add("bank-profile-frame--none");
+      }
+    }
+
+    renderCosmeticShop(profile, allItems, handlers) {
+      const items = Array.isArray(allItems) ? allItems : [];
+      const cat = this.getCosmeticShopCategory();
+      const cats = [
+        { id: "submarines", label: "Submarines" },
+        { id: "trails", label: "Trails" },
+        { id: "diverSuits", label: "Diver Suits" },
+        { id: "crashEffects", label: "Crash Effects" },
+        { id: "profileFrames", label: "Profile Frames" }
+      ];
+      if (this.el.shopBalance) this.el.shopBalance.textContent = this.formatMoney(profile.balance || 0);
+      if (this.el.shopCategories) {
+        this.el.shopCategories.innerHTML = cats
+          .map(
+            (c) =>
+              `<button type="button" role="tab" class="cosmetic-shop-cat${c.id === cat ? " active" : ""}" data-shop-cat="${c.id}">${c.label}</button>`
+          )
+          .join("");
+      }
+      const filtered = items.filter((i) => i.category === cat);
+      const oc = profile.ownedCosmetics || {};
+      const ec = profile.equippedCosmetics || {};
+      const equipKey = {
+        submarines: "submarine",
+        trails: "trail",
+        diverSuits: "diverSuit",
+        crashEffects: "crashEffect",
+        profileFrames: "profileFrame"
+      }[cat];
+      const rarityClass = (r) => {
+        const key = String(r || "Common").replace(/\s+/g, "");
+        return `cosmetic-shop-rarity cosmetic-shop-rarity--${key}`;
+      };
+
+      if (this.el.shopGrid) {
+        this.el.shopGrid.innerHTML = "";
+        const bal = Number(profile.balance) || 0;
+        filtered.forEach((item) => {
+          const owned = (oc[item.category] || []).includes(item.id);
+          const equipped = ec[equipKey] === item.id;
+          const card = document.createElement("div");
+          card.className = `cosmetic-shop-card${equipped ? " cosmetic-shop-card--equipped" : ""}`;
+          const priceLabel = item.price <= 0 ? "Starter" : this.formatMoney(item.price);
+          const buyDisabled = owned || (item.price > 0 && bal < item.price);
+          const equipDisabled = !owned || equipped;
+          const nm = String(item.name || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+          const rar = String(item.rarity || "Common").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+          card.innerHTML = `
+            <div><span class="${rarityClass(item.rarity)}">${rar}</span></div>
+            <div class="cosmetic-shop-card__name">${nm}</div>
+            <div class="cosmetic-shop-card__meta">${priceLabel}${owned ? " · Owned" : ""}${equipped ? " · Equipped" : ""}</div>
+            <div class="cosmetic-shop-card__actions">
+              <button type="button" data-shop-buy="${item.id}" ${buyDisabled ? "disabled" : ""}>Buy</button>
+              <button type="button" data-shop-equip="${item.id}" ${equipDisabled ? "disabled" : ""}>Equip</button>
+            </div>
+          `;
+          card.addEventListener("mouseenter", () => {
+            if (handlers && handlers.onPreview) handlers.onPreview(item);
+          });
+          this.el.shopGrid.appendChild(card);
+        });
+        if (handlers && handlers.onPreview && filtered[0]) handlers.onPreview(filtered[0]);
+      }
     }
 
     formatMoney(value) {
@@ -243,7 +391,13 @@
     }
 
     setCountdown(seconds) {
-      this.el.countdown.textContent = `Next round in ${seconds.toFixed(1)}s`;
+      const s = Math.max(0, Number(seconds) || 0);
+      this._lastCountdownSec = s;
+      this.el.countdown.textContent = `Next round in ${s.toFixed(1)}s`;
+    }
+
+    getCountdownSeconds() {
+      return this._lastCountdownSec != null ? this._lastCountdownSec : 0;
     }
 
     setCrashPoint(multiplier) {

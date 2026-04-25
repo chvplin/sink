@@ -38,21 +38,24 @@
       </div>
       <div class="game-header__actions">
         <div class="hud-icon-row" aria-label="Quick sections">
+          <button type="button" class="hud-icon-btn" data-tab="shop" title="Cosmetic shop">🛒</button>
           <button type="button" class="hud-icon-btn" data-tab="achievements" title="Honors">★</button>
           <button type="button" class="hud-icon-btn" data-tab="challenges" title="Missions">◎</button>
           <button type="button" class="hud-icon-btn" data-tab="stats" title="Log">▣</button>
           <button type="button" class="hud-icon-btn" data-tab="settings" title="Bay">⚙</button>
         </div>
-        <div class="bank bank--hud">
-          <button type="button" id="crew-aid-button" class="crew-aid-button hidden" title="Open recovery options">Aid</button>
-          <div class="bank-balance-row">
-            <span class="bank-label">Balance</span>
-            <strong id="balance-display">$1,000.00</strong>
-          </div>
-          <div id="debt-indicator" class="debt-indicator hidden" aria-live="polite">
-            <span class="debt-label">Debt owed</span>
-            <span id="debt-amount" class="debt-amount">$0</span>
-            <div class="debt-bar"><div id="debt-bar-fill" class="debt-bar-fill"></div></div>
+        <div id="bank-profile-frame" class="bank-profile-frame bank-profile-frame--none">
+          <div class="bank bank--hud">
+            <button type="button" id="crew-aid-button" class="crew-aid-button hidden" title="Open recovery options">Aid</button>
+            <div class="bank-balance-row">
+              <span class="bank-label">Balance</span>
+              <strong id="balance-display">$1,000.00</strong>
+            </div>
+            <div id="debt-indicator" class="debt-indicator hidden" aria-live="polite">
+              <span class="debt-label">Debt owed</span>
+              <span id="debt-amount" class="debt-amount">$0</span>
+              <div class="debt-bar"><div id="debt-bar-fill" class="debt-bar-fill"></div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -83,6 +86,7 @@
       <button type="button" class="dock-btn" data-tab="achievements"><span class="dock-btn__label">Honors</span></button>
       <button type="button" class="dock-btn" data-tab="stats"><span class="dock-btn__label">Log</span></button>
       <button type="button" class="dock-btn" data-tab="settings"><span class="dock-btn__label">Bay</span></button>
+      <button type="button" class="dock-btn" data-tab="shop"><span class="dock-btn__label">Shop</span></button>
     </nav>
 
     <main class="hud">
@@ -223,12 +227,34 @@
           <button id="signout-button" class="action-btn" type="button">Sign Out</button>
         </div>
       </section>
+
+      <section id="panel-shop" class="tab-panel cosmetic-shop-panel" aria-label="Cosmetic shop">
+        <div class="cosmetic-shop-head">
+          <h2>Cosmetic Shop</h2>
+          <p class="cosmetic-shop-balance">Balance <strong id="shop-balance-display">$0.00</strong></p>
+        </div>
+        <div class="cosmetic-shop-preview" id="cosmetic-shop-preview" aria-hidden="true">
+          <span class="cosmetic-shop-preview__label">Preview</span>
+          <div id="cosmetic-shop-preview-body" class="cosmetic-shop-preview__body"></div>
+        </div>
+        <div class="cosmetic-shop-cats" id="cosmetic-shop-categories" role="tablist" aria-label="Shop categories"></div>
+        <div id="cosmetic-shop-grid" class="cosmetic-shop-grid"></div>
+      </section>
     </main>
 
     <footer class="fairness-bar">
       <div>Server Seed Hash: <code id="server-hash-display">--</code></div>
       <div>Round Nonce: <code id="nonce-display">0</code></div>
     </footer>
+
+    <aside id="post-round-summary" class="post-round-summary hidden" aria-live="polite">
+      <div class="post-round-summary__card">
+        <button type="button" class="post-round-summary__close" id="post-round-summary-close" aria-label="Close dive summary">×</button>
+        <h3 class="post-round-summary__title">Dive result</h3>
+        <dl id="post-round-summary-dl" class="post-round-summary__dl"></dl>
+        <p id="post-round-summary-next" class="post-round-summary__next"></p>
+      </div>
+    </aside>
 
     <div id="toast-root" class="toast-root"></div>
 

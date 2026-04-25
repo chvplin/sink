@@ -56,6 +56,21 @@
     { id: "daily_reach25", text: "Reach 25x once", goal: 1, metric: "reach25Session" }
   ];
 
+  /** Cosmetic shop (no gameplay effects). Submarine entries map to existing hangar skin ids. */
+  const COSMETIC_SHOP_ITEMS = [
+    { id: "classic_submarine", name: "Classic Yellow (starter)", category: "submarines", rarity: "Common", price: 0, skinMap: "classic", asset: "assets/cosmetics/classic_sub.png" },
+    { id: "golden_submarine", name: "Golden Submarine", category: "submarines", rarity: "Legendary", price: 2500, skinMap: "gold", asset: "assets/cosmetics/golden_sub.png" },
+    { id: "neon_submarine", name: "Neon Submarine", category: "submarines", rarity: "Rare", price: 1800, skinMap: "neon", asset: "assets/cosmetics/neon_sub.png" },
+    { id: "abyss_submarine", name: "Abyss Submarine", category: "submarines", rarity: "Epic", price: 2200, skinMap: "abyss", asset: "assets/cosmetics/abyss_sub.png" },
+    { id: "pearl_bubble_trail", name: "Pearl Bubble Trail", category: "trails", rarity: "Rare", price: 400, trailKey: "pearl", asset: "assets/cosmetics/pearl_trail.png" },
+    { id: "sonar_wave_trail", name: "Sonar Wave Trail", category: "trails", rarity: "Epic", price: 600, trailKey: "sonar", asset: "assets/cosmetics/sonar_trail.png" },
+    { id: "red_diver_suit", name: "Crimson Diver Suit", category: "diverSuits", rarity: "Common", price: 350, diverKey: "red", asset: "assets/cosmetics/red_suit.png" },
+    { id: "gold_diver_suit", name: "Gold Diver Suit", category: "diverSuits", rarity: "Rare", price: 500, diverKey: "gold", asset: "assets/cosmetics/gold_suit.png" },
+    { id: "electric_crash_effect", name: "Electric Crash", category: "crashEffects", rarity: "Epic", price: 800, crashKey: "electric", asset: "assets/cosmetics/electric_crash.png" },
+    { id: "ink_cloud_crash_effect", name: "Ink Cloud Crash", category: "crashEffects", rarity: "Epic", price: 750, crashKey: "ink", asset: "assets/cosmetics/ink_crash.png" },
+    { id: "captain_profile_frame", name: "Captain Profile Frame", category: "profileFrames", rarity: "Rare", price: 300, frameKey: "captain", asset: "assets/cosmetics/captain_frame.png" }
+  ];
+
   const WEEKLY_CHALLENGE_POOL = [
     { id: "weekly_profit5k", text: "Earn $5,000 profit", goal: 5000, metric: "profitSession" },
     { id: "weekly_play120", text: "Play 120 rounds", goal: 120, metric: "roundsPlayedSession" },
@@ -67,6 +82,7 @@
 
   window.ProgressionContent = {
     SUBMARINE_SKINS,
+    COSMETIC_SHOP_ITEMS,
     ACHIEVEMENTS,
     DAILY_CHALLENGE_POOL,
     WEEKLY_CHALLENGE_POOL

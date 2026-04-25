@@ -16,7 +16,10 @@
         didCrash: false,
         isLuckyRound: false,
         equippedSkin: null,
-        crashShake: 0
+        crashShake: 0,
+        cosmeticTrail: "default",
+        cosmeticCrash: "default",
+        cosmeticDiver: "default"
       };
 
       this.submarine = {
@@ -68,27 +71,48 @@
     triggerCrashExplosion() {
       const px = this.getSubmarineX();
       const py = this.submarine.y * this.height;
-      for (let i = 0; i < 65; i += 1) {
+      const fx = this.scene.cosmeticCrash || "default";
+      const count = fx === "electric" ? 88 : fx === "ink" ? 72 : 65;
+      for (let i = 0; i < count; i += 1) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 60 + Math.random() * 260;
+        let hot = "#ffd479";
+        let cool = "#ff7f66";
+        if (fx === "electric") {
+          hot = Math.random() < 0.5 ? "#7df9ff" : "#fff6a8";
+          cool = "#4c6fff";
+        } else if (fx === "ink") {
+          hot = "#4a2d6e";
+          cool = "#1a0f28";
+        }
         this.explosionParticles.push({
           x: px,
           y: py,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           life: 1,
-          size: 2 + Math.random() * 4
+          size: fx === "ink" ? 1.5 + Math.random() * 3.2 : 2 + Math.random() * 4,
+          hot,
+          cool,
+          gravity: fx === "ink" ? 35 : 60
         });
       }
       this.scene.crashShake = 0.45;
     }
 
-    spawnCashoutDiver(winAmount) {
+    spawnCashoutDiver(winAmount, diverKey = "default") {
+      const suit =
+        diverKey === "gold"
+          ? { body: "#b8860b", accent: "#fff8dc", visor: "#fffacd" }
+          : diverKey === "red"
+            ? { body: "#9b2335", accent: "#ffb6c1", visor: "#8dd6ff" }
+            : { body: "#2f3a57", accent: "#8dd6ff", visor: "#8dd6ff" };
       this.cashoutDivers.push({
         x: this.getSubmarineX(),
         y: this.submarine.y * this.height,
         life: 1.7,
-        winAmount
+        winAmount,
+        suit
       });
     }
 
@@ -97,13 +121,16 @@
     }
 
     emitBubble(x, y, scale = 1) {
+      const trail = this.scene.cosmeticTrail || "default";
+      const kind = trail === "pearl" ? "pearl" : trail === "sonar" ? "sonar" : "default";
       this.bubbles.push({
         x,
         y,
-        r: (2 + Math.random() * 5) * scale,
+        r: (2 + Math.random() * 5) * scale * (kind === "pearl" ? 1.15 : 1),
         vy: -25 - Math.random() * 70,
         vx: -6 + Math.random() * 12,
-        life: 1.8 + Math.random()
+        life: 1.8 + Math.random(),
+        kind
       });
     }
 
@@ -199,7 +226,7 @@
         p.life -= dt * 1.2;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        p.vy += 60 * dt;
+        p.vy += (p.gravity != null ? p.gravity : 60) * dt;
       }
       this.explosionParticles = this.explosionParticles.filter((p) => p.life > 0);
     }
@@ -387,16 +414,17 @@
 
     drawDivers() {
       for (const d of this.cashoutDivers) {
+        const suit = d.suit || { body: "#2f3a57", accent: "#8dd6ff", visor: "#8dd6ff" };
         this.ctx.save();
         this.ctx.translate(d.x, d.y);
         this.ctx.rotate(-0.2);
 
-        this.ctx.fillStyle = "#2f3a57";
+        this.ctx.fillStyle = suit.body;
         this.ctx.beginPath();
         this.ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        this.ctx.fillStyle = "#8dd6ff";
+        this.ctx.fillStyle = suit.visor;
         this.ctx.beginPath();
         this.ctx.arc(12, -2, 5, 0, Math.PI * 2);
         this.ctx.fill();
@@ -413,11 +441,33 @@
     drawBubbles() {
       for (const b of this.bubbles) {
         this.ctx.globalAlpha = Math.max(0, b.life / 2.7);
-        this.ctx.strokeStyle = "rgba(215, 240, 255, 0.9)";
-        this.ctx.lineWidth = 1.4;
-        this.ctx.beginPath();
-        this.ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        this.ctx.stroke();
+        const k = b.kind || "default";
+        if (k === "pearl") {
+          const g = this.ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, 0, b.x, b.y, b.r);
+          g.addColorStop(0, "rgba(255,255,255,0.95)");
+          g.addColorStop(0.45, "rgba(230,245,255,0.55)");
+          g.addColorStop(1, "rgba(180,220,255,0.15)");
+          this.ctx.fillStyle = g;
+          this.ctx.beginPath();
+          this.ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          this.ctx.fill();
+        } else if (k === "sonar") {
+          this.ctx.strokeStyle = "rgba(120, 240, 255, 0.55)";
+          this.ctx.lineWidth = 1.2;
+          this.ctx.beginPath();
+          this.ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          this.ctx.stroke();
+          this.ctx.strokeStyle = "rgba(120, 240, 255, 0.2)";
+          this.ctx.beginPath();
+          this.ctx.arc(b.x, b.y, b.r + 3 + Math.sin(b.life * 6) * 2, 0, Math.PI * 2);
+          this.ctx.stroke();
+        } else {
+          this.ctx.strokeStyle = "rgba(215, 240, 255, 0.9)";
+          this.ctx.lineWidth = 1.4;
+          this.ctx.beginPath();
+          this.ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          this.ctx.stroke();
+        }
       }
       this.ctx.globalAlpha = 1;
     }
@@ -425,7 +475,9 @@
     drawExplosion() {
       for (const p of this.explosionParticles) {
         this.ctx.globalAlpha = Math.max(0, p.life);
-        this.ctx.fillStyle = p.life > 0.45 ? "#ffd479" : "#ff7f66";
+        const hot = p.hot || "#ffd479";
+        const cool = p.cool || "#ff7f66";
+        this.ctx.fillStyle = p.life > 0.45 ? hot : cool;
         this.ctx.beginPath();
         this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         this.ctx.fill();

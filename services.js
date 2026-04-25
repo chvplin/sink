@@ -112,6 +112,20 @@
         autoStopAfterLosses: 0,
         autoStopBalanceBelow: 0
       },
+      ownedCosmetics: {
+        submarines: ["classic_submarine"],
+        trails: [],
+        diverSuits: [],
+        crashEffects: [],
+        profileFrames: []
+      },
+      equippedCosmetics: {
+        submarine: "classic_submarine",
+        trail: null,
+        diverSuit: null,
+        crashEffect: null,
+        profileFrame: null
+      },
       leaderboardMockSeed: Date.now()
     };
   }
@@ -127,6 +141,27 @@
       settings: { ...defaults.settings, ...(raw.settings || {}) },
       playerRecoveryState: { ...defaults.playerRecoveryState, ...(raw.playerRecoveryState || {}) }
     };
+    const defOc = defaults.ownedCosmetics;
+    const rawOc = raw.ownedCosmetics;
+    merged.ownedCosmetics = {
+      submarines: Array.isArray(rawOc && rawOc.submarines) && rawOc.submarines.length ? rawOc.submarines : defOc.submarines,
+      trails: Array.isArray(rawOc && rawOc.trails) ? rawOc.trails : defOc.trails,
+      diverSuits: Array.isArray(rawOc && rawOc.diverSuits) ? rawOc.diverSuits : defOc.diverSuits,
+      crashEffects: Array.isArray(rawOc && rawOc.crashEffects) ? rawOc.crashEffects : defOc.crashEffects,
+      profileFrames: Array.isArray(rawOc && rawOc.profileFrames) ? rawOc.profileFrames : defOc.profileFrames
+    };
+    merged.equippedCosmetics = {
+      ...defaults.equippedCosmetics,
+      ...(raw.equippedCosmetics || {})
+    };
+    const own = (cat, id) => (merged.ownedCosmetics[cat] || []).includes(id);
+    if (!own("submarines", merged.equippedCosmetics.submarine)) {
+      merged.equippedCosmetics.submarine = defaults.equippedCosmetics.submarine;
+    }
+    if (merged.equippedCosmetics.trail && !own("trails", merged.equippedCosmetics.trail)) merged.equippedCosmetics.trail = null;
+    if (merged.equippedCosmetics.diverSuit && !own("diverSuits", merged.equippedCosmetics.diverSuit)) merged.equippedCosmetics.diverSuit = null;
+    if (merged.equippedCosmetics.crashEffect && !own("crashEffects", merged.equippedCosmetics.crashEffect)) merged.equippedCosmetics.crashEffect = null;
+    if (merged.equippedCosmetics.profileFrame && !own("profileFrames", merged.equippedCosmetics.profileFrame)) merged.equippedCosmetics.profileFrame = null;
     merged.saveVersion = SAVE_VERSION;
     if (typeof window.PlayerRecovery !== "undefined" && window.PlayerRecovery.ensureRecovery) {
       window.PlayerRecovery.ensureRecovery(merged);
