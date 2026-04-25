@@ -70,7 +70,10 @@
     _serverCountdownSyncedSeq: null,
     _serverJoinedRoundSeq: null,
     _lastServerOffsetRefresh: 0,
-    _agentDbgTickLogAt: 0
+    _agentDbgTickLogAt: 0,
+    _serverModeRetryAt: 0,
+    _lastFailsafeTickAt: 0,
+    _lastGlobalRefetchAt: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
@@ -100,6 +103,10 @@
   }
 
   function generateCrashPoint() {
+    if (isGlobalMode()) {
+      syncLog("Blocked legacy generateCrashPoint() in global mode");
+      return gameState.crashPoint || 1;
+    }
     const random = Math.random();
     let point;
     if (random < 0.33) point = 1 + Math.random() * 0.99;
@@ -130,6 +137,12 @@
   function serverNowMs() {
     return Date.now() + (gameState.serverTimeOffsetMs || 0);
   }
+  function isGlobalMode() {
+    return typeof dataService.useGlobalAuthoritativeRounds === "function" && dataService.useGlobalAuthoritativeRounds() === true;
+  }
+  function syncLog(...args) {
+    console.warn("[SYNC]", ...args);
+  }
   /** Avoid stale HTTP poll responses overwriting newer Realtime state (out-of-order completion). */
   function shouldReplaceGlobalRoundRow(incoming, cur) {
     if (!incoming) return false;
@@ -142,7 +155,7 @@
     const cu = cur.updated_at ? new Date(cur.updated_at).getTime() : 0;
     if (iu > cu) return true;
     if (iu < cu) return false;
-    const R = { countdown: 1, active: 2, crashed: 3 };
+    const R = { countdown: 1, active: 2, crashed: 3, settling: 4 };
     return (R[incoming.status] || 0) >= (R[cur.status] || 0);
   }
   async function refreshServerTimeOffset() {
@@ -154,6 +167,7 @@
     if (ms == null) return;
     gameState.serverTimeOffsetMs = ms - Date.now();
     gameState._lastServerOffsetRefresh = Date.now();
+    syncLog("server offset refreshed", `${gameState.serverTimeOffsetMs}ms`);
   }
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
 
@@ -327,6 +341,10 @@
   }
 
   function beginPreRound() {
+    if (isGlobalMode()) {
+      syncLog("Blocked legacy beginPreRound() in global mode");
+      return;
+    }
     gameState.stallRecoveryAttemptForRound = "";
     const roundRng = createRoundRng(gameState.nonce + 1);
     gameState.phase = "preRound";
@@ -365,6 +383,10 @@
   }
 
   function beginRound() {
+    if (isGlobalMode()) {
+      syncLog("Blocked legacy beginRound() in global mode");
+      return;
+    }
     if (gameState.phase !== "preRound") return;
     gameState.phase = "active";
     const scheduledStart = gameState.countdownStartMs + gameState.countdownDurationMs;
@@ -487,6 +509,10 @@
   }
 
   function crashRound({ publish = true, scheduleNextRound = true } = {}) {
+    if (isGlobalMode()) {
+      syncLog("Blocked legacy crashRound() in global mode");
+      return;
+    }
     gameState.phase = "crashed";
     gameState.didCrash = true;
     gameState.roundEndMs = Date.now();
@@ -628,16 +654,49 @@
     updateCashOutButtonState();
   }
 
+  async function refetchGlobalRound(reason) {
+    const now = Date.now();
+    if (now - gameState._lastGlobalRefetchAt < 900) return;
+    gameState._lastGlobalRefetchAt = now;
+    const row = await dataService.fetchLatestGlobalRound();
+    if (!row) {
+      syncLog("poll failure", reason);
+      return;
+    }
+    if (shouldReplaceGlobalRoundRow(row, gameState.globalRoundRow)) {
+      gameState.globalRoundRow = row;
+      syncLog("global round fetched", { reason, seq: row.round_seq, status: row.status });
+    } else {
+      syncLog("stale row rejected", { reason, incomingSeq: row.round_seq, currentSeq: gameState.globalRoundRow ? gameState.globalRoundRow.round_seq : null });
+    }
+  }
+
+  async function safeServerTick(reason) {
+    const now = Date.now();
+    if (now - gameState._lastFailsafeTickAt < 3000) return;
+    gameState._lastFailsafeTickAt = now;
+    syncLog("server tick failsafe", reason);
+    if (typeof dataService.invokeGlobalGameTick === "function") {
+      await dataService.invokeGlobalGameTick();
+    }
+    await refetchGlobalRound("post-failsafe-tick");
+  }
+
   function tickServerRounds(clock) {
     const row = gameState.globalRoundRow;
-    if (!row) return;
+    if (!row) {
+      ui.setPhase("Syncing to global round...");
+      ui.setCountdown(0);
+      return;
+    }
 
     const seq = Number(row.round_seq);
     const dur = Number(row.countdown_ms) || 10000;
     const cdEnd = new Date(row.countdown_ends_at).getTime();
     const cdStart = cdEnd - dur;
     const actStartMs = row.active_started_at ? new Date(row.active_started_at).getTime() : null;
-    const crashAtMs = row.crash_at ? new Date(row.crash_at).getTime() : null;
+    const crashAtMsRaw = row.crash_at ? new Date(row.crash_at).getTime() : null;
+    const crashAtMs = Number.isFinite(crashAtMsRaw) ? crashAtMsRaw : null;
     const crashedAtMs = row.crashed_at ? new Date(row.crashed_at).getTime() : null;
     const growth = Number(row.growth_per_sec) || CONFIG.MULTIPLIER_GROWTH_PER_SEC;
     const startRate = Number(row.start_rate_per_sec) || CONFIG.MULTIPLIER_START_RATE_PER_SEC;
@@ -680,6 +739,23 @@
       const rawMultiplier = multiplierFromElapsedMsWithCurve(elapsed, growth, startRate);
       const capped = Math.min(rawMultiplier, gameState.crashPoint);
       gameState.currentMultiplier = Number(capped.toFixed(2));
+      if (!crashAtMs && rawMultiplier >= gameState.crashPoint) {
+        syncLog("active round missing crash_time; rendering crash locally", { seq, multiplier: gameState.currentMultiplier, crashPoint: gameState.crashPoint });
+        gameState.phase = "crashed";
+        gameState.didCrash = true;
+        gameState.roundEndMs = clock;
+        if (gameState._serverHandledCrashSeq !== seq) {
+          gameState._serverHandledCrashSeq = seq;
+          if (prevPhase === "active" || gameState.activeBet > 0) {
+            handleRoundMetrics();
+            runLocalCrashPresentation();
+          }
+          closeRoundAfterCrash(false);
+        }
+        void refetchGlobalRound("missing-crash-time");
+        void safeServerTick("missing-crash-time");
+        return;
+      }
       if (didPlayerParticipateInRound()) {
         CONFIG.MILESTONES.forEach((m) => {
           if (Math.abs(gameState.currentMultiplier - m) < 0.015) ui.showMilestone(`Milestone ${m.toFixed(0)}x reached!`);
@@ -687,6 +763,11 @@
       }
       ui.setBetInfo(gameState.activeBet, gameState.activeBet > 0 ? gameState.activeBet * gameState.currentMultiplier : 0);
       evaluateAutoCashout();
+      if (crashAtMs && clock > crashAtMs + 1500) {
+        syncLog("Active round exceeded crash_time, rendering crash locally", { seq, now: clock, crashAtMs });
+        void refetchGlobalRound("active-over-crash-time");
+        void safeServerTick("active-over-crash-time");
+      }
     } else {
       if (gameState._serverJoinedRoundSeq !== seq && gameState.queuedBet > 0) {
         syncLocalBeginRoundFromServer();
@@ -709,6 +790,12 @@
       const endAnchor = crashedAtMs || crashAtMs || gameState.roundEndMs;
       ui.setCountdown(Math.max(0, (2400 - (clock - endAnchor)) / 1000));
       evaluateAutoStopConditions();
+      if (clock > endAnchor + 6500) {
+        syncLog("crashed round stale; syncing next dive", { seq, now: clock, endAnchor });
+        ui.setPhase("Syncing next dive...");
+        void refetchGlobalRound("stale-crashed-round");
+        void safeServerTick("stale-crashed-round");
+      }
     }
   }
 
@@ -768,7 +855,15 @@
     }
   }
 
+  function wantsGlobalServerMode() {
+    return isGlobalMode();
+  }
+
   function tickClientRounds(now) {
+    if (isGlobalMode()) {
+      syncLog("Blocked legacy tickClientRounds() in global mode");
+      return;
+    }
     if (gameState.phase === "preRound") {
       const elapsed = now - gameState.countdownStartMs;
       const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
@@ -1062,7 +1157,10 @@
   }
 
   async function syncSharedRoundState(force = false) {
-    if (gameState.serverAuthoritativeRounds) return;
+    if (isGlobalMode()) {
+      syncLog("Blocked legacy syncSharedRoundState() in global mode");
+      return;
+    }
     if (typeof dataService.fetchLatestLiveRound !== "function") return;
     const now = Date.now();
     if (!force && now - gameState.lastSharedSyncAt < CONFIG.SHARED_SYNC_MS) return;
@@ -1080,6 +1178,10 @@
   }
 
   function maybeRecoverStalledRound() {
+    if (isGlobalMode()) {
+      syncLog("Blocked legacy maybeRecoverStalledRound() in global mode");
+      return;
+    }
     if (gameState.phase !== "crashed" || !gameState.roundEndMs) return;
     if (Date.now() - gameState.roundEndMs < 5200) return;
     const rid = gameState.roundId;
@@ -1257,39 +1359,40 @@
         gameState._lastServerOffsetRefresh = now;
         void refreshServerTimeOffset();
       }
-      if (now - gameState._serverRoundFetchAt > 2500) {
+      if (now - gameState._serverRoundFetchAt > 1200) {
         gameState._serverRoundFetchAt = now;
-        void (async () => {
-          const r = await dataService.fetchLatestGlobalRound();
-          if (!r) return;
-          const cur = gameState.globalRoundRow;
-          if (!shouldReplaceGlobalRoundRow(r, cur)) {
-            // #region agent log
-            fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-F", location: "game.js:tick.pollGlobalRound", message: "stale poll ignored", data: { poll_seq: r.round_seq, cur_seq: cur ? cur.round_seq : null }, timestamp: Date.now() }) }).catch(() => {});
-            // #endregion
-            return;
-          }
-          gameState.globalRoundRow = r;
-          // #region agent log
-          fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-C", location: "game.js:tick.pollGlobalRound", message: "poll row applied", data: { round_seq: r.round_seq, status: r.status }, timestamp: Date.now() }) }).catch(() => {});
-          // #endregion
-        })();
+        void refetchGlobalRound("poll");
       }
       if (now - gameState._agentDbgTickLogAt > 2000) {
         gameState._agentDbgTickLogAt = now;
         const gr = gameState.globalRoundRow;
-        // #region agent log
-        fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-B", location: "game.js:tick.serverSample", message: "server tick sample", data: { phase: gameState.phase, round_seq: gr ? gr.round_seq : null, rowStatus: gr ? gr.status : null, serverNowMs: serverNowMs(), wallNow: now, offsetMs: gameState.serverTimeOffsetMs || 0, mult: gameState.currentMultiplier }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
+        syncLog("active visual sample", {
+          seq: gr ? gr.round_seq : null,
+          status: gr ? gr.status : null,
+          multiplier: gameState.currentMultiplier,
+          phase: gameState.phase
+        });
       }
       syncLiveBets();
       pollSocialLayer(now);
       tickServerRounds(serverNowMs());
     } else {
+      if (wantsGlobalServerMode()) {
+        if (now >= gameState._serverModeRetryAt) {
+          gameState._serverModeRetryAt = now + 2000;
+          syncLog("retry init server authoritative mode");
+          void initServerAuthoritativeRounds().then((ok) => {
+            syncLog("retry init result", { ok, serverAuthoritativeRounds: gameState.serverAuthoritativeRounds });
+          });
+        }
+        ui.setPhase("Syncing to global round...");
+        ui.setCountdown(0);
+      } else {
       if (now - gameState._agentDbgTickLogAt > 3000) {
         gameState._agentDbgTickLogAt = now;
         // #region agent log
         fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:tick.clientPath", message: "legacy client-driven tick", data: { phase: gameState.phase, roundId: gameState.roundId, isRoundHost: gameState.isRoundHost }, timestamp: Date.now() }) }).catch(() => {});
+        try { console.warn("[SYNCDBG357a69]", "H-A", "legacy client-driven tick", { phase: gameState.phase, roundId: gameState.roundId, isRoundHost: gameState.isRoundHost }); } catch (e) { /* ignore */ }
         // #endregion
       }
       syncSharedRoundState();
@@ -1297,6 +1400,7 @@
       pollSocialLayer(now);
       maybeRecoverStalledRound();
       tickClientRounds(now);
+      }
     }
     updateCashOutButtonState();
     const depthNorm = depthNormFromMultiplier(gameState.currentMultiplier);
@@ -1382,16 +1486,23 @@
     ui.setBetInputValue(Math.min(10, Math.max(0.01, profile.balance)));
     ui.setCrashPoint(0);
     const serverRounds = await initServerAuthoritativeRounds();
-    // #region agent log
-    fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:init", message: "post initServerAuthoritativeRounds", data: { serverRounds, serverAuthoritativeRounds: gameState.serverAuthoritativeRounds }, timestamp: Date.now() }) }).catch(() => {});
-    try { console.warn("[SYNCDBG357a69]", "H-A", "init outcome", { serverRounds, serverAuthoritativeRounds: gameState.serverAuthoritativeRounds }); } catch (e) { /* ignore */ }
-    // #endregion
+    syncLog("global mode init outcome", { serverRounds, serverAuthoritativeRounds: gameState.serverAuthoritativeRounds });
     if (!serverRounds) {
-      await syncSharedRoundState(true);
-      if (!gameState.roundId) {
-        beginPreRound();
+      if (!wantsGlobalServerMode()) {
+        await syncSharedRoundState(true);
+        if (!gameState.roundId) {
+          // #region agent log
+          fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-G", location: "game.js:init", message: "fallback beginPreRound while global mode expected", data: { globalFlag: typeof dataService.useGlobalAuthoritativeRounds === "function" ? !!dataService.useGlobalAuthoritativeRounds() : null }, timestamp: Date.now() }) }).catch(() => {});
+          try { console.warn("[SYNCDBG357a69]", "H-G", "fallback beginPreRound", { globalFlag: typeof dataService.useGlobalAuthoritativeRounds === "function" ? !!dataService.useGlobalAuthoritativeRounds() : null }); } catch (e) { /* ignore */ }
+          // #endregion
+          beginPreRound();
+        } else {
+          syncLiveBets(true);
+        }
       } else {
-        syncLiveBets(true);
+        gameState._serverModeRetryAt = 0;
+        ui.setPhase("Syncing to global round...");
+        ui.setCountdown(0);
       }
     } else {
       syncLiveBets(true);
@@ -1405,11 +1516,10 @@
       if (t - gameState.lastVisibilityResyncAt < 800) return;
       gameState.lastVisibilityResyncAt = t;
       gameState.lastSharedSyncAt = 0;
-      if (gameState.serverAuthoritativeRounds) {
+      if (isGlobalMode()) {
         gameState._serverRoundFetchAt = 0;
         void refreshServerTimeOffset().then(async () => {
-          const r = await dataService.fetchLatestGlobalRound();
-          if (r && shouldReplaceGlobalRoundRow(r, gameState.globalRoundRow)) gameState.globalRoundRow = r;
+          await refetchGlobalRound("visibilitychange");
         });
       } else {
         syncSharedRoundState(true);
