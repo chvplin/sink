@@ -1,6 +1,7 @@
 /* Deep Dive Crash — GUI layer (reference: concept art / mobile crash layout) */
 
 :root {
+  --depth-bar-w: min(440px, 92vw);
   --dd-abyss: #050c1a;
   --dd-deep: #0a1a33;
   --dd-mid: #0f2744;
@@ -174,7 +175,7 @@ html, body {
   align-items: center;
   gap: 10px;
   padding: 6px 14px;
-  width: min(440px, 92vw);
+  width: var(--depth-bar-w);
   background: linear-gradient(180deg, rgba(6, 16, 38, 0.9), rgba(4, 10, 26, 0.94));
   border: 1px solid rgba(232, 197, 71, 0.28);
   border-radius: 999px;
@@ -219,15 +220,18 @@ html, body {
 
 .fleet-wager-widget {
   position: absolute;
-  left: max(10px, env(safe-area-inset-left, 0px));
-  top: calc(env(safe-area-inset-top, 0px) + 76px + 42px + 10px);
+  top: calc(env(safe-area-inset-top, 0px) + 76px);
+  left: calc(50% + var(--depth-bar-w) / 2 + 12px);
+  right: auto;
   bottom: auto;
   z-index: 28;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 12px;
-  min-width: 108px;
+  padding: 7px 11px;
+  min-width: 102px;
+  max-width: min(200px, calc(50vw - var(--depth-bar-w) / 2 - 20px));
+  box-sizing: border-box;
   border-radius: 12px;
   border: 1px solid rgba(232, 197, 71, 0.32);
   background: linear-gradient(165deg, rgba(12, 28, 52, 0.92), rgba(4, 10, 22, 0.96));
@@ -871,7 +875,7 @@ html, body {
   }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 768px) {
   .play-fold__summary {
     display: flex;
     align-items: center;
@@ -1043,82 +1047,250 @@ html, body {
   }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 768px) {
   .play-layout--split {
-    display: block;
-    min-height: 0 !important;
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
-  }
-
-  .play-layout--split > .game-viewport.play-stage {
-    display: none !important;
-  }
-
-  .play-stage {
-    display: none !important;
-  }
-
-  .play-ui-column {
-    width: 100%;
-    max-height: min(44vh, 340px);
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    padding: 0 2px;
+    min-height: 0;
   }
 }
 
 .mobile-ui {
+  overflow-x: hidden;
   --header-h: 56px;
   --dock-h: 46px;
   --fairness-h: 26px;
   --play-ui-w: minmax(0, 1fr);
-  --play-align-pad: 6px;
-  --play-stack-gap: 5px;
-  --play-card-radius: 10px;
-  --play-sheet-max: min(52vh, 420px);
+  --play-align-pad: 8px;
+  --play-stack-gap: 6px;
+  --play-card-radius: 8px;
+  --mobile-controls-cap: min(40dvh, 38vh);
+  --mobile-viewport-h: clamp(50dvh, 54dvh, 60dvh);
+  --play-sheet-max: var(--mobile-controls-cap);
 }
 
 .mobile-ui .game-title {
   font-size: 0.78rem;
 }
 
-/* Play tab: bottom sheet so the scene fills the screen (mobile-game layout) */
+/* Mobile play tab: scene-first; controls capped (~40% portrait height); no fixed full-width sheet */
 .mobile-ui #panel-play .play-layout--split {
-  display: block !important;
-  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .mobile-ui #panel-play .play-stage {
-  display: none !important;
+  display: block !important;
+  flex: 0 0 var(--mobile-viewport-h);
+  min-height: var(--mobile-viewport-h);
+  max-height: 60dvh;
+  width: 100%;
+  order: -1;
+  pointer-events: none;
+  background: transparent !important;
 }
 
 .mobile-ui #panel-play .play-ui-column {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--dock-h) + var(--fairness-h) + 2px + env(safe-area-inset-bottom, 0px));
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
   z-index: 22;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: var(--mobile-controls-cap);
   width: 100%;
   max-width: 100%;
-  max-height: var(--play-sheet-max);
   margin: 0;
-  padding: 5px 8px 7px;
+  padding: 6px 8px 8px;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  align-self: stretch;
-  border-radius: 14px 14px 0 0;
+  border-radius: var(--play-card-radius);
   border: 1px solid rgba(232, 197, 71, 0.22);
-  border-bottom: none;
-  background: linear-gradient(180deg, rgba(6, 14, 30, 0.94), rgba(4, 10, 22, 0.98));
-  box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.55);
-  gap: 5px;
+  background: linear-gradient(180deg, rgba(6, 14, 30, 0.92), rgba(4, 10, 22, 0.96));
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
+  gap: var(--play-stack-gap);
   display: flex;
   flex-direction: column;
+  pointer-events: auto;
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  body.mobile-ui #panel-play .play-hud-stack {
+    order: 0;
+  }
+
+  body.mobile-ui #panel-play .history-panel {
+    order: 1;
+    flex: 0 0 auto;
+    max-height: 34px !important;
+    min-height: 0;
+    overflow: hidden;
+    padding: 2px 4px !important;
+  }
+
+  body.mobile-ui #panel-play .play-controls-panel {
+    order: 2;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  body.mobile-ui #panel-play #history-list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: 28px;
+    margin: 0;
+    padding: 0 2px;
+    list-style: none;
+    align-items: center;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.mobile-ui #panel-play #history-list li {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    font-size: 11px;
+    line-height: 1.2;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+  body.mobile-ui #panel-play .play-layout--split {
+    display: grid !important;
+    flex: 1 1 auto !important;
+    grid-template-columns: 1fr clamp(120px, 28vw, 180px) !important;
+    grid-template-rows: minmax(0, 1fr) auto auto !important;
+    gap: 6px !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body.mobile-ui #panel-play .play-ui-column {
+    display: contents !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  body.mobile-ui #panel-play .play-stage {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    order: unset !important;
+    flex: unset !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    height: 100%;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body.mobile-ui #panel-play .play-hud-stack {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    width: 100%;
+    min-width: 0;
+    z-index: 23;
+    padding: 4px 6px;
+    border-radius: var(--play-card-radius);
+    border: 1px solid rgba(232, 197, 71, 0.2);
+    background: rgba(4, 10, 22, 0.78);
+    box-sizing: border-box;
+  }
+
+  body.mobile-ui #panel-play .play-controls-panel {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: end;
+    width: 100%;
+    min-width: 0;
+    max-height: min(42dvh, 220px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    z-index: 23;
+    padding: 6px !important;
+    box-sizing: border-box;
+    border-radius: var(--play-card-radius);
+    border: 1px solid rgba(232, 197, 71, 0.22);
+    background: linear-gradient(165deg, rgba(10, 24, 48, 0.94), rgba(4, 10, 22, 0.98));
+  }
+
+  body.mobile-ui #panel-play .history-panel {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: 100%;
+    min-width: 0;
+    max-height: 32px !important;
+    min-height: 0;
+    overflow: hidden;
+    padding: 2px 6px !important;
+    margin: 0;
+    z-index: 24;
+    border-radius: 6px;
+    border: 1px solid rgba(232, 197, 71, 0.2);
+    background: rgba(4, 10, 22, 0.88);
+    box-sizing: border-box;
+  }
+
+  body.mobile-ui #panel-play #history-list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: 26px;
+    margin: 0;
+    padding: 0 2px;
+    list-style: none;
+    align-items: center;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.mobile-ui #panel-play #history-list li {
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    font-size: 11px;
+    line-height: 1.2;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  body.mobile-ui #panel-play .history-panel h2,
+  body.mobile-ui #panel-play .history-panel h3,
+  body.mobile-ui #panel-play .history-panel .live-bets-list,
+  body.mobile-ui #panel-play .history-panel .streak-card {
+    display: none !important;
+  }
+
+  body.mobile-ui #panel-play .history-panel .play-fold__body {
+    max-height: 28px !important;
+    padding: 0 !important;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 480px) {
+  body.mobile-ui #panel-play .play-ui-column {
+    max-height: min(38dvh, 36vh);
+  }
 }
 
 .mobile-ui .play-hud-stack {
@@ -1140,6 +1312,7 @@ html, body {
   gap: 2px 10px;
   padding: 5px 7px !important;
   min-height: 0;
+  pointer-events: none;
 }
 
 .mobile-ui .viewport-hud--left .multiplier-label {
@@ -1158,7 +1331,7 @@ html, body {
 
 .mobile-ui .viewport-hud--left .multiplier-value {
   flex: 0 0 auto;
-  font-size: clamp(1.15rem, 6vw, 1.42rem) !important;
+  font-size: clamp(42px, 13vw, 76px) !important;
   line-height: 1 !important;
   margin: 0;
 }
@@ -1204,9 +1377,9 @@ html, body {
 .mobile-ui .hud-chat-drawer {
   top: auto;
   right: max(4px, env(safe-area-inset-right, 0px));
-  bottom: calc(var(--dock-h) + var(--fairness-h) + 2px + env(safe-area-inset-bottom, 0px) + var(--play-sheet-max) + 8px);
-  width: min(252px, calc(100vw - 52px));
-  height: min(26vh, 200px, calc(100dvh - env(safe-area-inset-top, 0px) - var(--dock-h) - var(--fairness-h) - var(--play-sheet-max) - 56px));
+  bottom: calc(var(--dock-h) + var(--fairness-h) + 8px + env(safe-area-inset-bottom, 0px));
+  width: min(220px, calc(100vw - 48px));
+  height: min(22dvh, 168px, calc(100dvh - var(--header-h) - var(--dock-h) - var(--fairness-h) - 120px));
 }
 
 .mobile-ui .hud-chat-drawer--collapsed {
@@ -1453,39 +1626,96 @@ html, body {
 }
 
 .mobile-ui .action-btn {
-  min-height: 40px;
-  padding-block: 8px;
+  min-height: 36px;
+  max-height: 48px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  font-size: clamp(13px, 3.2vw, 15px);
+  border-radius: 8px;
 }
 
 .mobile-ui .dock-btn {
-  min-width: 50px;
-  padding: 5px 6px;
-  font-size: 0.5rem;
+  min-width: 44px;
+  max-height: 48px;
+  padding: 4px 5px;
+  font-size: 10px;
 }
 
 .mobile-ui .dock-btn__label {
-  font-size: 0.52rem;
+  font-size: 11px;
 }
 
 .mobile-ui .hud-icon-btn {
-  width: 30px;
-  height: 30px;
-  font-size: 0.85rem;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  max-height: 44px;
+  font-size: 0.8rem;
+  border-radius: 8px;
 }
 
-/* Win over legacy mobile .hud inset from styles.css — bottom stays tight; play controls are fixed */
+/* Win over legacy mobile .hud inset — flex column so #panel-play can shrink/grow with scene */
 .mobile-ui .hud {
   top: calc(var(--header-h) + 2px) !important;
   left: 4px !important;
   right: 4px !important;
   bottom: calc(var(--dock-h) + var(--fairness-h) + 4px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden;
+}
+
+.mobile-ui #panel-play.tab-panel.active {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.mobile-ui .tab-panel:not(#panel-play) {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100dvh - var(--header-h) - var(--dock-h) - var(--fairness-h) - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px !important;
+  box-sizing: border-box;
+}
+
+.mobile-ui .recovery-hub-panel {
+  max-width: min(92vw, 420px) !important;
+  max-height: 80dvh !important;
+  overflow-y: auto !important;
+  padding: 10px !important;
+  box-sizing: border-box;
+}
+
+.mobile-ui .play-controls-panel .bet-controls input#bet-input,
+.mobile-ui .play-fold--auto input[type="number"] {
+  min-height: 34px;
+  max-height: 44px;
+  padding: 5px 8px;
+  font-size: 14px;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.mobile-ui .adjust-btn,
+.mobile-ui .preset-btn {
+  min-height: 34px;
+  max-height: 44px;
+  padding: 4px 6px;
+  font-size: 13px;
+  border-radius: 8px;
 }
 
 .mobile-ui .fleet-wager-widget {
   left: max(6px, env(safe-area-inset-left, 0px));
+  right: auto;
   top: calc(env(safe-area-inset-top, 0px) + 100px + 42px + 8px);
   bottom: auto;
+  max-width: none;
   padding: 6px 10px;
   min-width: 96px;
 }

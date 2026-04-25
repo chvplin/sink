@@ -620,9 +620,9 @@ html, body {
   min-width: 0;
   max-width: none;
   width: 100%;
-  padding: 12px 14px;
-  font-size: 0.85rem;
-  line-height: 1.35;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.3;
   word-break: break-word;
   -webkit-tap-highlight-color: transparent;
 }
@@ -663,8 +663,11 @@ html, body {
 }
 
 .mobile-ui .recovery-hub-panel {
-  max-height: 92vh;
-  padding: 12px;
+  max-width: min(92vw, 420px);
+  max-height: 80dvh;
+  overflow-y: auto;
+  padding: 10px;
+  box-sizing: border-box;
 }
 .mobile-ui .recovery-hub-grid {
   grid-template-columns: 1fr;

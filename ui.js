@@ -104,7 +104,7 @@
     }
 
     setupResponsiveMode() {
-      const mq = window.matchMedia("(max-width: 820px)");
+      const mq = window.matchMedia("(max-width: 768px)");
       const apply = () => {
         document.body.classList.toggle("mobile-ui", mq.matches);
         const narrow = mq.matches;
