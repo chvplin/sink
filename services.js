@@ -435,6 +435,65 @@
       }
     }
 
+    useGlobalAuthoritativeRounds() {
+      const cfg = window.SUPABASE_CONFIG || {};
+      return !!(cfg.useGlobalAuthoritativeRounds && this.supabase);
+    }
+
+    async rpcServerNowMs() {
+      if (!this.supabase) return null;
+      try {
+        const { data, error } = await this.supabase.rpc("server_now_ms");
+        if (error) return null;
+        if (typeof data === "number" && Number.isFinite(data)) return data;
+        if (data && typeof data.ms === "number") return data.ms;
+        return null;
+      } catch (error) {
+        console.warn("server_now_ms RPC failed.", error);
+        return null;
+      }
+    }
+
+    async fetchLatestGlobalRound() {
+      if (!this.supabase) return null;
+      try {
+        const { data, error } = await this.supabase
+          .from("global_rounds")
+          .select("*")
+          .eq("lobby_id", "global")
+          .order("round_seq", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error || !data) return null;
+        return data;
+      } catch (error) {
+        console.warn("global_rounds fetch error.", error);
+        return null;
+      }
+    }
+
+    subscribeGlobalRounds(onRow) {
+      if (!this.supabase || typeof onRow !== "function") return () => {};
+      const channel = this.supabase
+        .channel("global-rounds-feed")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "global_rounds", filter: "lobby_id=eq.global" },
+          (payload) => {
+            const row = payload.new && Object.keys(payload.new).length ? payload.new : null;
+            if (row && row.lobby_id === "global") onRow(row);
+          }
+        )
+        .subscribe();
+      return () => {
+        try {
+          this.supabase.removeChannel(channel);
+        } catch (e) {
+          console.warn("removeChannel global rounds", e);
+        }
+      };
+    }
+
     async fetchLiveBets(roundId) {
       if (!this.supabase || !roundId) return [];
       try {

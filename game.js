@@ -60,7 +60,16 @@
     seenJoinKeys: new Set(),
     joinPollPrimed: false,
     stallRecoveryAttemptForRound: "",
-    lastVisibilityResyncAt: 0
+    lastVisibilityResyncAt: 0,
+    serverAuthoritativeRounds: false,
+    globalRoundRow: null,
+    serverTimeOffsetMs: 0,
+    _globalRoundUnsub: null,
+    _serverRoundFetchAt: 0,
+    _serverHandledCrashSeq: null,
+    _serverCountdownSyncedSeq: null,
+    _serverJoinedRoundSeq: null,
+    _lastServerOffsetRefresh: 0
   };
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
@@ -108,6 +117,24 @@
     const scale = startRate / growth;
     const value = 1 + scale * (Math.exp(growth * t) - 1);
     return clamp(value, 1, 10000);
+  }
+  function multiplierFromElapsedMsWithCurve(ms, growthPerSec, startRatePerSec) {
+    const t = ms / 1000;
+    const growth = Math.max(0.0001, growthPerSec);
+    const startRate = Math.max(0.01, startRatePerSec);
+    const scale = startRate / growth;
+    const value = 1 + scale * (Math.exp(growth * t) - 1);
+    return clamp(value, 1, 10000);
+  }
+  function serverNowMs() {
+    return Date.now() + (gameState.serverTimeOffsetMs || 0);
+  }
+  async function refreshServerTimeOffset() {
+    if (!dataService.supabase || typeof dataService.rpcServerNowMs !== "function") return;
+    const ms = await dataService.rpcServerNowMs();
+    if (ms == null) return;
+    gameState.serverTimeOffsetMs = ms - Date.now();
+    gameState._lastServerOffsetRefresh = Date.now();
   }
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
 
@@ -401,10 +428,12 @@
     gameState.roundParticipation.playerBetPlaced = false;
     gameState.roundParticipation.betAmount = 0;
     gameState.roundParticipation.playerCashedOut = false;
-    gameState.nonce += 1;
+    if (!gameState.serverAuthoritativeRounds) {
+      gameState.nonce += 1;
+    }
     saveAll();
     renderAllPanels();
-    if (scheduleNextRound) {
+    if (!gameState.serverAuthoritativeRounds && scheduleNextRound) {
       setTimeout(() => {
         beginPreRound();
       }, 2400);
@@ -454,6 +483,279 @@
     if (prevPhase !== "active" || sharedRoundId !== gameState.roundId) return;
     handleRoundMetrics();
     runLocalCrashPresentation();
+  }
+
+  function syncServerNewCountdownRow(row) {
+    gameState.stallRecoveryAttemptForRound = "";
+    gameState.phase = "preRound";
+    gameState.roundMode = "normal";
+    gameState.pendingRoundMode = "normal";
+    gameState.playerEligibleForRewards = true;
+    gameState.didCrash = false;
+    gameState.hasCashedOut = false;
+    gameState.currentMultiplier = 1;
+    gameState.activeBet = 0;
+    gameState.roundStartMs = 0;
+    gameState.roundEndMs = 0;
+    gameState.roundParticipation = {
+      playerBetPlaced: false,
+      betAmount: 0,
+      playerJoinedRound: false,
+      playerCashedOut: false
+    };
+    if (gameState.queuedBet > 0) {
+      gameState.roundParticipation.playerBetPlaced = true;
+      gameState.roundParticipation.betAmount = gameState.queuedBet;
+    }
+    gameState.roundHostUserId = "";
+    gameState.isRoundHost = false;
+    const fair = row && row.id ? String(row.id).replace(/-/g, "").slice(0, 24) : gameState.serverSeedHash.slice(0, 24);
+    gameState.serverSeedHash = fair;
+    ui.setPhase("Prepare your submarine...");
+    ui.setLuckyRound(false);
+    ui.setFairness(fair, Math.max(0, Number(row.round_seq) - 1));
+    ui.setBetInfo(gameState.queuedBet, 0);
+    updateCashOutButtonState();
+    gameState._serverCountdownSyncedSeq = Number(row.round_seq);
+    gameState._serverJoinedRoundSeq = null;
+    if (profile.settings.autoBetEnabled && gameState.queuedBet === 0) setTimeout(() => placeBet(), 120);
+  }
+
+  function syncLocalBeginRoundFromServer() {
+    const row = gameState.globalRoundRow;
+    const seq = row ? Number(row.round_seq) : NaN;
+    if (!row || !Number.isFinite(seq)) return;
+    if (gameState._serverJoinedRoundSeq === seq) return;
+    gameState._serverJoinedRoundSeq = seq;
+    const pending = gameState.pendingRoundMode || "normal";
+    gameState.pendingRoundMode = "normal";
+    gameState.roundMode = pending === "free_play" ? "free_play" : (pending === "second_chance" ? "second_chance" : "normal");
+    gameState.playerEligibleForRewards = gameState.roundMode !== "free_play";
+    if (window.PlayerRecovery) {
+      const prs = window.PlayerRecovery.ensureRecovery(profile);
+      if (gameState.roundMode === "second_chance") {
+        prs.secondChanceUsesToday = (prs.secondChanceUsesToday || 0) + 1;
+        prs.secondChanceLastUsed = Date.now();
+      }
+      if (gameState.roundMode === "free_play") {
+        prs.freePlayRoundsAvailable = Math.max(0, (prs.freePlayRoundsAvailable || 0) - 1);
+      }
+    }
+    gameState.activeBet = gameState.queuedBet;
+    gameState.roundParticipation.playerJoinedRound = gameState.activeBet > 0;
+    gameState.roundParticipation.betAmount = gameState.activeBet;
+    gameState.queuedBet = 0;
+    ui.updateRoundModeBanner(gameState.roundMode);
+    ui.setPhase(gameState.activeBet > 0 ? "Dive in progress! Cash out before implosion." : "Spectating this dive");
+    ui.setLuckyRound(gameState.isLuckyRound);
+    updateCashOutButtonState();
+  }
+
+  function primeServerRoundFromRow(row) {
+    const clock = serverNowMs();
+    const seq = Number(row.round_seq);
+    const dur = Number(row.countdown_ms) || 10000;
+    const cdEnd = new Date(row.countdown_ends_at).getTime();
+    const crashAtMs = row.crash_at ? new Date(row.crash_at).getTime() : null;
+    const crashedAtMs = row.crashed_at ? new Date(row.crashed_at).getTime() : null;
+    gameState.isLuckyRound = !!row.is_lucky_round;
+    gameState.crashPoint = Number(row.crash_point);
+
+    if (row.status === "countdown" && clock < cdEnd) {
+      gameState._serverJoinedRoundSeq = null;
+      gameState._serverHandledCrashSeq = null;
+      if (gameState._serverCountdownSyncedSeq !== seq) syncServerNewCountdownRow(row);
+      return;
+    }
+    if (row.status === "crashed" || (crashAtMs != null && clock >= crashAtMs)) {
+      gameState._serverHandledCrashSeq = seq;
+      gameState._serverJoinedRoundSeq = seq;
+      gameState._serverCountdownSyncedSeq = seq;
+      gameState.phase = "crashed";
+      gameState.didCrash = true;
+      gameState.currentMultiplier = gameState.crashPoint;
+      gameState.roundEndMs = crashedAtMs || crashAtMs || clock;
+      gameState.roundId = `round-${seq}`;
+      gameState.nonce = Math.max(0, seq - 1);
+      ui.setCrashPoint(gameState.crashPoint);
+      ui.setPhase("Round ended.");
+      ui.setLuckyRound(false);
+      updateCashOutButtonState();
+      closeRoundAfterCrash(false);
+      return;
+    }
+    gameState._serverHandledCrashSeq = null;
+    gameState._serverJoinedRoundSeq = null;
+    gameState._serverCountdownSyncedSeq = seq;
+    gameState.roundId = `round-${seq}`;
+    gameState.nonce = Math.max(0, seq - 1);
+    gameState.phase = "preRound";
+    gameState.didCrash = false;
+    gameState.hasCashedOut = false;
+    gameState.currentMultiplier = 1;
+    gameState.roundParticipation.playerJoinedRound = false;
+    gameState.roundParticipation.playerCashedOut = false;
+    gameState.roundParticipation.playerBetPlaced = gameState.queuedBet > 0;
+    gameState.roundParticipation.betAmount = gameState.queuedBet;
+    gameState.activeBet = 0;
+    gameState.roundHostUserId = "";
+    gameState.isRoundHost = false;
+    const fair = row.id ? String(row.id).replace(/-/g, "").slice(0, 24) : gameState.serverSeedHash.slice(0, 24);
+    gameState.serverSeedHash = fair;
+    ui.setFairness(fair, Math.max(0, seq - 1));
+    ui.setLuckyRound(gameState.isLuckyRound);
+    ui.setBetInfo(gameState.queuedBet, 0);
+    ui.setPhase("Prepare your submarine...");
+    updateCashOutButtonState();
+  }
+
+  function tickServerRounds(clock) {
+    const row = gameState.globalRoundRow;
+    if (!row) return;
+
+    const seq = Number(row.round_seq);
+    const dur = Number(row.countdown_ms) || 10000;
+    const cdEnd = new Date(row.countdown_ends_at).getTime();
+    const cdStart = cdEnd - dur;
+    const actStartMs = row.active_started_at ? new Date(row.active_started_at).getTime() : null;
+    const crashAtMs = row.crash_at ? new Date(row.crash_at).getTime() : null;
+    const crashedAtMs = row.crashed_at ? new Date(row.crashed_at).getTime() : null;
+    const growth = Number(row.growth_per_sec) || CONFIG.MULTIPLIER_GROWTH_PER_SEC;
+    const startRate = Number(row.start_rate_per_sec) || CONFIG.MULTIPLIER_START_RATE_PER_SEC;
+
+    let gamePhase;
+    if (row.status === "countdown" && clock < cdEnd) {
+      gamePhase = "preRound";
+    } else if (row.status === "crashed" || (crashAtMs != null && clock >= crashAtMs)) {
+      gamePhase = "crashed";
+    } else {
+      gamePhase = "active";
+    }
+
+    const prevPhase = gameState.phase;
+    const effectiveActiveStart = (actStartMs != null && !Number.isNaN(actStartMs)) ? actStartMs : cdEnd;
+
+    gameState.roundId = `round-${seq}`;
+    gameState.nonce = Math.max(0, seq - 1);
+    gameState.crashPoint = Number(row.crash_point);
+    gameState.isLuckyRound = !!row.is_lucky_round;
+    gameState.countdownDurationMs = dur;
+    gameState.countdownStartMs = cdStart;
+
+    if (gamePhase === "preRound") {
+      if (gameState._serverCountdownSyncedSeq !== seq) {
+        syncServerNewCountdownRow(row);
+      }
+      gameState.phase = "preRound";
+      gameState.roundStartMs = 0;
+      const elapsed = clock - gameState.countdownStartMs;
+      const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
+      ui.setCountdown(remaining);
+    } else if (gamePhase === "active") {
+      if (gameState._serverJoinedRoundSeq !== seq) {
+        syncLocalBeginRoundFromServer();
+      }
+      gameState.phase = "active";
+      gameState.roundStartMs = effectiveActiveStart;
+      const elapsed = clock - effectiveActiveStart;
+      const rawMultiplier = multiplierFromElapsedMsWithCurve(elapsed, growth, startRate);
+      const capped = Math.min(rawMultiplier, gameState.crashPoint);
+      gameState.currentMultiplier = Number(capped.toFixed(2));
+      if (didPlayerParticipateInRound()) {
+        CONFIG.MILESTONES.forEach((m) => {
+          if (Math.abs(gameState.currentMultiplier - m) < 0.015) ui.showMilestone(`Milestone ${m.toFixed(0)}x reached!`);
+        });
+      }
+      ui.setBetInfo(gameState.activeBet, gameState.activeBet > 0 ? gameState.activeBet * gameState.currentMultiplier : 0);
+      evaluateAutoCashout();
+    } else {
+      if (gameState._serverJoinedRoundSeq !== seq && gameState.queuedBet > 0) {
+        syncLocalBeginRoundFromServer();
+      }
+      gameState.phase = "crashed";
+      gameState.roundStartMs = effectiveActiveStart;
+      gameState.currentMultiplier = gameState.crashPoint;
+      gameState.roundEndMs = crashedAtMs || crashAtMs || clock;
+
+      if (gameState._serverHandledCrashSeq !== seq) {
+        gameState._serverHandledCrashSeq = seq;
+        gameState.didCrash = true;
+        if (prevPhase === "active" || gameState.activeBet > 0) {
+          handleRoundMetrics();
+          runLocalCrashPresentation();
+        }
+        closeRoundAfterCrash(false);
+      }
+
+      const endAnchor = crashedAtMs || crashAtMs || gameState.roundEndMs;
+      ui.setCountdown(Math.max(0, (2400 - (clock - endAnchor)) / 1000));
+      evaluateAutoStopConditions();
+    }
+  }
+
+  async function initServerAuthoritativeRounds() {
+    gameState.serverAuthoritativeRounds = false;
+    if (typeof dataService.useGlobalAuthoritativeRounds !== "function" || !dataService.useGlobalAuthoritativeRounds()) {
+      return false;
+    }
+    try {
+      await refreshServerTimeOffset();
+      const row = await dataService.fetchLatestGlobalRound();
+      if (!row) {
+        console.warn("global_rounds: no rows yet. Apply migration and schedule Edge Function global-game-tick (~1s).");
+        return false;
+      }
+      if (gameState._globalRoundUnsub) {
+        try { gameState._globalRoundUnsub(); } catch (e) { /* ignore */ }
+        gameState._globalRoundUnsub = null;
+      }
+      gameState.serverAuthoritativeRounds = true;
+      gameState.isRoundHost = false;
+      gameState.globalRoundRow = row;
+      primeServerRoundFromRow(row);
+      gameState._globalRoundUnsub = dataService.subscribeGlobalRounds((incoming) => {
+        if (!incoming) return;
+        gameState.globalRoundRow = incoming;
+      });
+      return true;
+    } catch (e) {
+      console.warn("initServerAuthoritativeRounds failed", e);
+      return false;
+    }
+  }
+
+  function tickClientRounds(now) {
+    if (gameState.phase === "preRound") {
+      const elapsed = now - gameState.countdownStartMs;
+      const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
+      ui.setCountdown(remaining);
+      if (gameState.isRoundHost && elapsed >= gameState.countdownDurationMs) {
+        beginRound();
+      }
+    } else if (gameState.phase === "active") {
+      const elapsed = now - gameState.roundStartMs;
+      const rawMultiplier = multiplierFromElapsedMs(elapsed);
+      const capped = Math.min(rawMultiplier, gameState.crashPoint);
+      gameState.currentMultiplier = Number(capped.toFixed(2));
+      if (didPlayerParticipateInRound()) {
+        CONFIG.MILESTONES.forEach((m) => {
+          if (Math.abs(gameState.currentMultiplier - m) < 0.015) ui.showMilestone(`Milestone ${m.toFixed(0)}x reached!`);
+        });
+      }
+      if (gameState.isRoundHost && rawMultiplier >= gameState.crashPoint) {
+        handleRoundMetrics();
+        crashRound({
+          publish: true,
+          scheduleNextRound: true
+        });
+      } else {
+        ui.setBetInfo(gameState.activeBet, gameState.activeBet > 0 ? gameState.activeBet * gameState.currentMultiplier : 0);
+        evaluateAutoCashout();
+      }
+    } else if (gameState.phase === "crashed") {
+      ui.setCountdown(Math.max(0, (2400 - (now - gameState.roundEndMs)) / 1000));
+      evaluateAutoStopConditions();
+    }
   }
 
   function placeBet() {
@@ -604,6 +906,7 @@
   }
 
   function publishRoundState() {
+    if (gameState.serverAuthoritativeRounds) return;
     if (typeof dataService.publishLiveRound !== "function") return;
     if (!gameState.isRoundHost) return;
     dataService.publishLiveRound({
@@ -621,6 +924,7 @@
   }
 
   function applyLiveRoundState(state) {
+    if (gameState.serverAuthoritativeRounds) return;
     if (!state || !state.phase || !state.roundId) return;
     const publishedAt = Number(state.publishedAt || 0);
     if (publishedAt && publishedAt <= gameState.lastSharedStateAt) return;
@@ -714,6 +1018,7 @@
   }
 
   async function syncSharedRoundState(force = false) {
+    if (gameState.serverAuthoritativeRounds) return;
     if (typeof dataService.fetchLatestLiveRound !== "function") return;
     const now = Date.now();
     if (!force && now - gameState.lastSharedSyncAt < CONFIG.SHARED_SYNC_MS) return;
@@ -903,40 +1208,27 @@
   function tick() {
     const now = Date.now();
     maybeRunRealtimeChallengeReset(now);
-    syncSharedRoundState();
-    syncLiveBets();
-    pollSocialLayer(now);
-    maybeRecoverStalledRound();
-    if (gameState.phase === "preRound") {
-      const elapsed = now - gameState.countdownStartMs;
-      const remaining = Math.max(0, (gameState.countdownDurationMs - elapsed) / 1000);
-      ui.setCountdown(remaining);
-      if (gameState.isRoundHost && elapsed >= gameState.countdownDurationMs) {
-        beginRound();
+    if (gameState.serverAuthoritativeRounds) {
+      if (now - gameState._lastServerOffsetRefresh > 45000) {
+        gameState._lastServerOffsetRefresh = now;
+        void refreshServerTimeOffset();
       }
-    } else if (gameState.phase === "active") {
-      const elapsed = now - gameState.roundStartMs;
-      const rawMultiplier = multiplierFromElapsedMs(elapsed);
-      const capped = Math.min(rawMultiplier, gameState.crashPoint);
-      gameState.currentMultiplier = Number(capped.toFixed(2));
-      if (didPlayerParticipateInRound()) {
-        CONFIG.MILESTONES.forEach((m) => {
-          if (Math.abs(gameState.currentMultiplier - m) < 0.015) ui.showMilestone(`Milestone ${m.toFixed(0)}x reached!`);
-        });
+      if (now - gameState._serverRoundFetchAt > 2500) {
+        gameState._serverRoundFetchAt = now;
+        void (async () => {
+          const r = await dataService.fetchLatestGlobalRound();
+          if (r) gameState.globalRoundRow = r;
+        })();
       }
-      if (gameState.isRoundHost && rawMultiplier >= gameState.crashPoint) {
-        handleRoundMetrics();
-        crashRound({
-          publish: true,
-          scheduleNextRound: true
-        });
-      } else {
-        ui.setBetInfo(gameState.activeBet, gameState.activeBet > 0 ? gameState.activeBet * gameState.currentMultiplier : 0);
-        evaluateAutoCashout();
-      }
-    } else if (gameState.phase === "crashed") {
-      ui.setCountdown(Math.max(0, (2400 - (now - gameState.roundEndMs)) / 1000));
-      evaluateAutoStopConditions();
+      syncLiveBets();
+      pollSocialLayer(now);
+      tickServerRounds(serverNowMs());
+    } else {
+      syncSharedRoundState();
+      syncLiveBets();
+      pollSocialLayer(now);
+      maybeRecoverStalledRound();
+      tickClientRounds(now);
     }
     updateCashOutButtonState();
     const depthNorm = depthNormFromMultiplier(gameState.currentMultiplier);
@@ -1021,9 +1313,14 @@
     }
     ui.setBetInputValue(Math.min(10, Math.max(0.01, profile.balance)));
     ui.setCrashPoint(0);
-    await syncSharedRoundState(true);
-    if (!gameState.roundId) {
-      beginPreRound();
+    const serverRounds = await initServerAuthoritativeRounds();
+    if (!serverRounds) {
+      await syncSharedRoundState(true);
+      if (!gameState.roundId) {
+        beginPreRound();
+      } else {
+        syncLiveBets(true);
+      }
     } else {
       syncLiveBets(true);
     }
@@ -1036,7 +1333,15 @@
       if (t - gameState.lastVisibilityResyncAt < 800) return;
       gameState.lastVisibilityResyncAt = t;
       gameState.lastSharedSyncAt = 0;
-      syncSharedRoundState(true);
+      if (gameState.serverAuthoritativeRounds) {
+        gameState._serverRoundFetchAt = 0;
+        void refreshServerTimeOffset().then(async () => {
+          const r = await dataService.fetchLatestGlobalRound();
+          if (r) gameState.globalRoundRow = r;
+        });
+      } else {
+        syncSharedRoundState(true);
+      }
     });
     if (CONFIG.DEV_TOOLS_ENABLED) window.runCrashDistributionTest = runCrashDistributionTest;
     requestAnimationFrame(function frame() { tick(); requestAnimationFrame(frame); });
