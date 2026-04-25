@@ -814,7 +814,12 @@
         row = await dataService.fetchLatestGlobalRound();
       }
       if (!row) {
-        console.warn("global_rounds: no rows yet. Apply migration and schedule Edge Function global-game-tick (~1s).");
+        syncLog("global_rounds empty on init; attempting server tick");
+        await safeServerTick("init-empty-row");
+        row = await dataService.fetchLatestGlobalRound();
+      }
+      if (!row) {
+        console.warn("global_rounds: no rows yet after failsafe tick. Verify schedule for global-game-tick (~1s).");
         // #region agent log
         fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-A", location: "game.js:initServerAuthoritativeRounds", message: "fetchLatestGlobalRound empty after retries", data: { attempts: 4 }, timestamp: Date.now() }) }).catch(() => {});
         try { console.warn("[SYNCDBG357a69]", "H-A", "global_rounds fetch empty after 4 attempts"); } catch (e) { /* ignore */ }
@@ -1501,6 +1506,7 @@
         }
       } else {
         gameState._serverModeRetryAt = 0;
+        void safeServerTick("init-syncing");
         ui.setPhase("Syncing to global round...");
         ui.setCountdown(0);
       }
