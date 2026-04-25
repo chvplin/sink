@@ -22,11 +22,14 @@ body.mobile-ui .multiplier-display,
 body.mobile-ui .current-multiplier,
 body.mobile-ui #multiplier-display.multiplier-value {
   position: fixed !important;
-  top: calc(env(safe-area-inset-top, 0px) + 60px) !important;
+  top: calc(env(safe-area-inset-top, 0px) + 66px) !important;
   left: 50% !important;
   right: auto !important;
   transform: translateX(-50%) !important;
-  z-index: 1010 !important;
+  z-index: 2550 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
   color: #ffd84d !important;
   background: transparent !important;
   border: none !important;
@@ -164,6 +167,12 @@ body.mobile-ui #cashout-button {
   border-radius: 10px !important;
   position: relative !important;
   top: 0 !important;
+}
+
+body.mobile-ui #cashout-button {
+  font-size: 11px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
 }
 
 body.mobile-ui .mobile-action-bar .stake-info {
