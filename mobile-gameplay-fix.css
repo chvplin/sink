@@ -105,7 +105,7 @@ body.mobile-ui .mobile-action-bar {
   flex-direction: row !important;
   flex-wrap: wrap !important;
   align-items: center !important;
-  justify-content: space-between !important;
+  justify-content: center !important;
   gap: 8px !important;
   min-height: 56px !important;
   max-height: 72px !important;
@@ -119,19 +119,25 @@ body.mobile-ui #mobile-action-row1 {
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: center !important;
+  justify-content: space-between !important;
   gap: 8px !important;
-  position: relative !important;
-  top: -6px !important;
+  position: fixed !important;
+  left: 10px !important;
+  right: 10px !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px) !important;
+  z-index: 2601 !important;
 }
 
 body.mobile-ui #mobile-action-row2 {
-  flex: 0 0 auto !important;
+  flex: 1 1 100% !important;
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
+  justify-content: space-between !important;
   gap: 8px !important;
   position: relative !important;
-  top: -6px !important;
+  top: 0 !important;
+  width: 100% !important;
 }
 
 body.mobile-ui #mobile-action-row2 .action-buttons {
@@ -157,12 +163,12 @@ body.mobile-ui #cashout-button {
   font-weight: 800 !important;
   border-radius: 10px !important;
   position: relative !important;
-  top: -8px !important;
+  top: 0 !important;
 }
 
 body.mobile-ui .mobile-action-bar .stake-info {
   position: relative !important;
-  top: -8px !important;
+  top: 0 !important;
 }
 
 body.mobile-ui .mobile-top-menu {
