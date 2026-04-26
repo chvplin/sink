@@ -808,6 +808,10 @@
           if (act === "accept" && b.dataset.requestId && c.onFriendsAcceptRequest) void c.onFriendsAcceptRequest(b.dataset.requestId);
           if (act === "decline" && b.dataset.requestId && c.onFriendsDeclineRequest) void c.onFriendsDeclineRequest(b.dataset.requestId);
           if (act === "remove" && b.dataset.userId && c.onFriendsRemove) void c.onFriendsRemove(b.dataset.userId);
+          if (act === "send-money" && b.dataset.transferBlocked === "1") {
+            this.showToast("Transfer", "You cannot send transfers while you have unpaid debt.");
+            return;
+          }
           if (act === "send-money" && b.dataset.userId && c.onFriendsOpenTransfer) {
             c.onFriendsOpenTransfer(b.dataset.userId, b.dataset.displayName || "");
           }
@@ -953,9 +957,10 @@
             const online = f.online
               ? `<span class="friends-online" title="Online">●</span>`
               : `<span class="friends-offline" title="Status unknown">○</span>`;
-            const moneyDisabled = st.transferBlocked ? "disabled" : "";
+            const transferBlockedAttr = st.transferBlocked ? `data-transfer-blocked="1"` : "";
+            const transferBlockedClass = st.transferBlocked ? " friends-btn--blocked" : "";
             return `<div class="friends-card"><div class="friends-card__name">${online} ${nm}</div><div class="friends-card__actions">
-              <button type="button" class="friends-btn friends-btn--small friends-btn--primary" data-friends-act="send-money" data-user-id="${uid}" data-display-name="${nm}" ${moneyDisabled}>Send money</button>
+              <button type="button" class="friends-btn friends-btn--small friends-btn--primary${transferBlockedClass}" data-friends-act="send-money" data-user-id="${uid}" data-display-name="${nm}" ${transferBlockedAttr}>Send money</button>
               <button type="button" class="friends-btn friends-btn--small" data-friends-act="remove" data-user-id="${uid}">Remove</button>
             </div></div>`;
           })

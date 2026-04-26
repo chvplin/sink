@@ -2373,6 +2373,10 @@ html, body {
   cursor: default;
 }
 
+.friends-btn.friends-btn--blocked {
+  opacity: 0.6;
+}
+
 .friends-btn--small {
   min-height: 36px;
   padding: 6px 10px;
