@@ -64,6 +64,7 @@
     recentJoinRoster: [],
     playerPresenceByUserId: {},
     realtimePresenceRoster: [],
+    remoteCashoutSeenKeys: new Set(),
     stallRecoveryAttemptForRound: "",
     lastVisibilityResyncAt: 0,
     serverAuthoritativeRounds: false,
@@ -244,6 +245,7 @@
     gameState._postRoundSummaryRoundSeq = null;
     gameState._sessionCashoutMult = null;
     gameState._sessionCashoutPayout = null;
+    gameState.remoteCashoutSeenKeys.clear();
     ui.hidePostRoundSummary();
   }
 
@@ -1492,7 +1494,10 @@
     ui.setPhase(source === "auto" ? "Auto cash out successful!" : "Cash out successful!");
     ui.setBetInfo(0, winnings);
     animations.spawnCashoutDiver(winnings, getCosmeticVisualState().diverKey);
-    if (gameState.roundMode !== "free_play") publishLiveBet("cashed");
+    if (gameState.roundMode !== "free_play") publishLiveBet("cashed", {
+      cashoutMultiplier: gameState.currentMultiplier,
+      payout: winnings
+    });
     updateCashOutButtonState();
     saveAll();
   }
@@ -1701,18 +1706,23 @@
     });
   }
 
-  function publishLiveBet(status) {
+  function publishLiveBet(status, extra = {}) {
     if (typeof dataService.publishLiveBet !== "function") return;
     if (gameState.pendingRoundMode === "free_play" || gameState.roundMode === "free_play") return;
     const betAmount = gameState.roundParticipation.betAmount || gameState.queuedBet || gameState.activeBet || 0;
     if (betAmount <= 0) return;
+    const eqSkin = getEquippedSkin().colors;
+    const diverKey = getCosmeticVisualState().diverKey;
     dataService.publishLiveBet({
       roundId: gameState.roundId,
       status,
       amount: betAmount,
       displayName: typeof dataService.getCurrentDisplayName === "function"
         ? dataService.getCurrentDisplayName()
-        : "Player"
+        : "Player",
+      skin: eqSkin && eqSkin.body && eqSkin.accent && eqSkin.trim ? eqSkin : null,
+      diverKey,
+      ...extra
     });
   }
 
@@ -1725,9 +1735,31 @@
     gameState._lastLiveBetsSnapshot = Array.isArray(bets) ? bets.map((b) => ({
       name: b.name,
       amount: Number(b.amount) || 0,
-      userId: String(b.userId || "")
+      userId: String(b.userId || ""),
+      status: String(b.status || "spectating"),
+      skin: b.skin && b.skin.body && b.skin.accent && b.skin.trim ? b.skin : null,
+      diverKey: String(b.diverKey || "default"),
+      cashoutMultiplier: Number(b.cashoutMultiplier || 0),
+      payout: Number(b.payout || 0)
     })) : [];
-    ui.renderLiveBets(bets);
+    ui.renderLiveBets((bets || []).filter((b) => String(b.status || "") === "active"));
+  }
+
+  function maybeRenderRemoteCashoutDivers() {
+    const meId = dataService && dataService.user ? dataService.user.id : "";
+    const rows = Array.isArray(gameState._lastLiveBetsSnapshot) ? gameState._lastLiveBetsSnapshot : [];
+    rows.forEach((r) => {
+      const uid = String(r && r.userId ? r.userId : "");
+      if (!uid || (meId && uid === meId)) return;
+      if (String(r && r.status ? r.status : "") !== "cashed") return;
+      const key = `${gameState.roundId}|${uid}|cashed`;
+      if (gameState.remoteCashoutSeenKeys.has(key)) return;
+      gameState.remoteCashoutSeenKeys.add(key);
+      const payout = Number(r && r.payout ? r.payout : 0);
+      if (payout <= 0) return;
+      const x = animations.getRemoteSubAnchorX(uid);
+      animations.spawnCashoutDiver(payout, r.diverKey || "default", x, r.name || "Player");
+    });
   }
 
   function maybeRunRealtimeChallengeReset(nowMs) {
@@ -1846,11 +1878,12 @@
       ? String(dataService.getCurrentDisplayName() || "Player").trim()
       : "Player";
     const live = Array.isArray(gameState._lastLiveBetsSnapshot) ? gameState._lastLiveBetsSnapshot : [];
-    const activeByUser = new Set(
-      live
-        .map((b) => String(b && b.userId ? b.userId : "").trim())
-        .filter(Boolean)
-    );
+    const liveByUser = new Map();
+    live.forEach((b) => {
+      const uid = String(b && b.userId ? b.userId : "").trim();
+      if (!uid) return;
+      liveByUser.set(uid, b);
+    });
     const rosterMap = new Map();
     rosterMap.set(selfKey, {
       userId: selfKey,
@@ -1936,7 +1969,8 @@
         userId: p.userId,
         name: p.name || "Player",
         isSelf: !!p.isSelf,
-        roleLabel: activeByUser.has(p.sourceUserId || p.userId) ? "Player" : "Spectator"
+        roleLabel: liveByUser.has(p.sourceUserId || p.userId) ? "Player" : "Spectator",
+        skin: (liveByUser.get(p.sourceUserId || p.userId) || {}).skin || null
       }))
       .sort((a, b) => {
         if (a.isSelf && !b.isSelf) return -1;
@@ -1970,6 +2004,7 @@
         });
       }
       syncLiveBets();
+      maybeRenderRemoteCashoutDivers();
       pollSocialLayer(now);
       tickServerRounds(serverNowMs());
       const staleFor = now - (gameState._lastGlobalProgressAt || 0);
@@ -1997,6 +2032,7 @@
       }
       syncSharedRoundState();
       syncLiveBets();
+      maybeRenderRemoteCashoutDivers();
       pollSocialLayer(now);
       maybeRecoverStalledRound();
       tickClientRounds(now);

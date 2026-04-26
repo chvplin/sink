@@ -138,7 +138,7 @@
       this.scene.crashShake = 0.45;
     }
 
-    spawnCashoutDiver(winAmount, diverKey = "default") {
+    spawnCashoutDiver(winAmount, diverKey = "default", anchorX = null, labelName = "") {
       const suit =
         diverKey === "gold"
           ? { body: "#b8860b", accent: "#fff8dc", visor: "#fffacd" }
@@ -146,12 +146,48 @@
             ? { body: "#9b2335", accent: "#ffb6c1", visor: "#8dd6ff" }
             : { body: "#2f3a57", accent: "#8dd6ff", visor: "#8dd6ff" };
       this.cashoutDivers.push({
-        x: this.getSubmarineX(),
+        x: Number.isFinite(anchorX) ? anchorX : this.getSubmarineX(),
         y: this.submarine.y * this.height,
         life: 1.7,
         winAmount,
-        suit
+        suit,
+        labelName: String(labelName || "")
       });
+    }
+
+    getRemoteLineupSlots() {
+      const allSubs = Array.isArray(this.scene.visibleSubmarines) ? this.scene.visibleSubmarines : [];
+      const lineup = allSubs.filter((s) => s && !s.isSelf);
+      const max = Math.min(10, lineup.length);
+      if (max <= 0 || this.width < 900) return [];
+      const leftPad = Math.max(24, this.width * 0.04);
+      const rightPad = Math.max(280, this.width * 0.24);
+      const innerWidth = Math.max(220, this.width - leftPad - rightPad);
+      const startX = leftPad;
+      const baseOtherWidth = 152 * 0.58;
+      const baseTotalWidth = Math.max(0, max * baseOtherWidth);
+      const crowdScale = Math.min(1, Math.max(0.4, innerWidth / Math.max(baseTotalWidth, 1)));
+      const subWidth = baseOtherWidth * crowdScale;
+      const usedWidth = subWidth * max;
+      const minGap = Math.max(8, this.width * 0.008);
+      const availableGaps = Math.max(0, innerWidth - usedWidth);
+      const gap = max > 1 ? Math.max(minGap, availableGaps / (max - 1)) : 0;
+      const slots = [];
+      let cursorX = startX;
+      for (let i = 0; i < max; i += 1) {
+        const sub = lineup[i] || {};
+        slots.push({ userId: String(sub.userId || ""), x: cursorX + (subWidth / 2) });
+        cursorX += subWidth + gap;
+      }
+      return slots;
+    }
+
+    getRemoteSubAnchorX(userId) {
+      const uid = String(userId || "");
+      if (!uid) return null;
+      const slots = this.getRemoteLineupSlots();
+      const slot = slots.find((s) => s.userId === uid);
+      return slot ? slot.x : null;
     }
 
     getSubmarineX() {
@@ -518,7 +554,9 @@
         const subWidth = widths[i];
         const x = cursorX + (subWidth / 2);
         const y = baseY - 64 + bob;
-        const skin = this.colorFromName(sub.name || `player-${i}`);
+        const skin = sub.skin && sub.skin.body && sub.skin.accent && sub.skin.trim
+          ? sub.skin
+          : this.colorFromName(sub.name || `player-${i}`);
         const isSelf = false;
         const scale = otherScale;
         this.ctx.save();
@@ -592,6 +630,11 @@
         this.ctx.fillStyle = "#8dff8d";
         this.ctx.font = "700 18px Segoe UI";
         this.ctx.fillText(`+$${d.winAmount.toFixed(2)}`, d.x + 12, d.y - 20);
+        if (d.labelName) {
+          this.ctx.fillStyle = "rgba(220,240,255,0.96)";
+          this.ctx.font = "600 11px Segoe UI";
+          this.ctx.fillText(String(d.labelName).slice(0, 14), d.x + 12, d.y - 34);
+        }
         this.ctx.globalAlpha = 1;
       }
     }

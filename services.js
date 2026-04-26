@@ -642,11 +642,15 @@
           latestByUser.set(userKey, payload);
         }
         return Array.from(latestByUser.values())
-          .filter((p) => p.status === "active")
           .map((p) => ({
             userId: p.userId || p.playerId || "",
             name: p.displayName || p.playerId || "Player",
-            amount: Number(p.amount || 0)
+            amount: Number(p.amount || 0),
+            status: String(p.status || "spectating"),
+            skin: p.skin && p.skin.body && p.skin.accent && p.skin.trim ? p.skin : null,
+            diverKey: p.diverKey || "default",
+            cashoutMultiplier: Number(p.cashoutMultiplier || 0),
+            payout: Number(p.payout || 0)
           }));
       } catch (error) {
         console.warn("Live bets fetch error.", error);
