@@ -1800,6 +1800,24 @@
     }
   }
 
+  function buildOtherSubmarinesSceneState() {
+    const isDesktop = !(typeof document !== "undefined" && document.body && document.body.classList.contains("mobile-ui"));
+    if (!isDesktop) return [];
+    const live = Array.isArray(gameState._lastLiveBetsSnapshot) ? gameState._lastLiveBetsSnapshot : [];
+    if (live.length === 0) return [];
+    const myName = typeof dataService.getCurrentDisplayName === "function"
+      ? String(dataService.getCurrentDisplayName() || "Player").trim().toLowerCase()
+      : "";
+    const others = live
+      .filter((b) => {
+        const nm = String(b && b.name ? b.name : "").trim().toLowerCase();
+        return nm && (!myName || nm !== myName);
+      })
+      .slice(0, 6)
+      .map((b) => ({ name: String(b.name || "Player"), amount: Number(b.amount) || 0 }));
+    return others;
+  }
+
   function tick() {
     const now = Date.now();
     maybeRunRealtimeChallengeReset(now);
@@ -1869,7 +1887,8 @@
       equippedSkin: getEquippedSkin().colors,
       cosmeticTrail: cv.trailKey,
       cosmeticCrash: cv.crashKey,
-      cosmeticDiver: cv.diverKey
+      cosmeticDiver: cv.diverKey,
+      otherSubmarines: buildOtherSubmarinesSceneState()
     });
     if (ui.isPostRoundSummaryVisible()) {
       const sec = ui.getCountdownSeconds();

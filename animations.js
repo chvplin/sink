@@ -19,7 +19,8 @@
         crashShake: 0,
         cosmeticTrail: "default",
         cosmeticCrash: "default",
-        cosmeticDiver: "default"
+        cosmeticDiver: "default",
+        otherSubmarines: []
       };
 
       this.submarine = {
@@ -448,6 +449,64 @@
       this.ctx.restore();
     }
 
+    colorFromName(name) {
+      const seed = this.hashKey(name || "player");
+      const hue = seed % 360;
+      return {
+        body: `hsl(${hue}, 76%, 58%)`,
+        accent: `hsl(${(hue + 24) % 360}, 72%, 50%)`,
+        trim: `hsl(${(hue + 190) % 360}, 48%, 22%)`
+      };
+    }
+
+    drawOtherSubmarines() {
+      if (this.scene.didCrash) return;
+      const others = Array.isArray(this.scene.otherSubmarines) ? this.scene.otherSubmarines : [];
+      if (others.length === 0) return;
+      const isDesktop = this.width >= 900;
+      if (!isDesktop) return;
+      const slots = [
+        { x: 0.18, y: -0.055, tilt: -0.03 },
+        { x: 0.31, y: -0.085, tilt: -0.05 },
+        { x: 0.74, y: -0.08, tilt: 0.04 },
+        { x: 0.86, y: -0.05, tilt: 0.025 },
+        { x: 0.2, y: 0.08, tilt: -0.02 },
+        { x: 0.8, y: 0.08, tilt: 0.02 }
+      ];
+      const baseY = this.submarine.y * this.height;
+      const bob = Math.sin(performance.now() / 680) * 2.5;
+      const max = Math.min(slots.length, others.length);
+      for (let i = 0; i < max; i += 1) {
+        const sub = others[i] || {};
+        const slot = slots[i];
+        const x = this.width * slot.x;
+        const y = baseY + (this.height * slot.y) + bob;
+        const skin = this.colorFromName(sub.name || `player-${i}`);
+        this.ctx.save();
+        this.ctx.translate(x, y);
+        this.ctx.rotate(this.submarine.tilt * 0.6 + slot.tilt);
+        this.ctx.scale(0.58, 0.58);
+        this.ctx.fillStyle = skin.body;
+        this.ctx.strokeStyle = skin.trim;
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.ellipse(0, 0, 76, 32, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.stroke();
+        this.ctx.fillStyle = skin.accent;
+        this.ctx.fillRect(-24, -44, 46, 18);
+        this.ctx.fillStyle = "#aee7ff";
+        this.ctx.beginPath();
+        this.ctx.arc(18, -4, 13, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.fillStyle = "#35579a";
+        this.ctx.fillRect(-86, -6, 16, 12);
+        this.ctx.fillStyle = "#203764";
+        this.ctx.fillRect(66, -20, 14, 40);
+        this.ctx.restore();
+      }
+    }
+
     drawDivers() {
       for (const d of this.cashoutDivers) {
         const suit = d.suit || { body: "#2f3a57", accent: "#8dd6ff", visor: "#8dd6ff" };
@@ -602,6 +661,7 @@
       this.ctx.restore();
 
       this.drawBubbles();
+      this.drawOtherSubmarines();
       this.drawSubmarine();
       this.drawDivers();
       this.drawExplosion();
