@@ -18,10 +18,15 @@
       this._unlockBound = true;
       const unlock = () => {
         this.init();
-        if (this.ctx && this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
-        this.unlocked = true;
-        window.removeEventListener("pointerdown", unlock, true);
-        window.removeEventListener("keydown", unlock, true);
+        if (this.ctx && this.ctx.state === "suspended") {
+          this.ctx.resume().catch(() => {});
+        }
+        this.unlocked = !this.ctx || this.ctx.state === "running";
+        if (this.unlocked) {
+          window.removeEventListener("pointerdown", unlock, true);
+          window.removeEventListener("keydown", unlock, true);
+          this._unlockBound = false;
+        }
       };
       window.addEventListener("pointerdown", unlock, true);
       window.addEventListener("keydown", unlock, true);
@@ -41,6 +46,15 @@
       if (!this.enabled) return;
       this.init();
       if (!this.ctx || !this.master) return;
+      if (this.ctx.state !== "running") {
+        this.ctx.resume()
+          .then(() => {
+            this.unlocked = this.ctx && this.ctx.state === "running";
+            if (this.unlocked) this.play(eventName, data);
+          })
+          .catch(() => {});
+        return;
+      }
       const now = this.ctx.currentTime;
       switch (eventName) {
         case "ui-click":
@@ -144,4 +158,15 @@
   }
 
   window.GameSound = GameSound;
+  window.__testSound = function __testSound() {
+    try {
+      const s = new GameSound();
+      s.setEnabled(true);
+      s.ensureUnlocked();
+      s.play("milestone");
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
 })();
