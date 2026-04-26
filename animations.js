@@ -469,16 +469,34 @@
       const lineup = mySub ? [mySub, ...others] : allSubs.slice();
       const max = Math.min(12, lineup.length);
       if (max <= 0) return;
-      const gap = this.width / (max + 1);
-      const baseY = this.submarine.y * this.height;
-      const bob = Math.sin(performance.now() / 680) * 2.5;
+      const innerWidth = this.width * 0.92;
+      const startX = (this.width - innerWidth) / 2;
+      const baseMainWidth = 152;
+      const baseOtherWidth = 152 * 0.58;
+      const baseTotalWidth = (baseMainWidth + Math.max(0, max - 1) * baseOtherWidth);
+      const crowdScale = Math.min(1, Math.max(0.4, innerWidth / Math.max(baseTotalWidth, 1)));
+      const mainScale = 1 * crowdScale;
+      const otherScale = 0.58 * crowdScale;
+      const widths = [];
       for (let i = 0; i < max; i += 1) {
         const sub = lineup[i] || {};
-        const x = gap * (i + 1);
+        widths.push((sub.isSelf ? baseMainWidth * mainScale : baseMainWidth * otherScale));
+      }
+      const usedWidth = widths.reduce((sum, w) => sum + w, 0);
+      const minGap = Math.max(8, this.width * 0.008);
+      const availableGaps = Math.max(0, innerWidth - usedWidth);
+      const gap = max > 1 ? Math.max(minGap, availableGaps / (max - 1)) : 0;
+      const baseY = this.submarine.y * this.height;
+      const bob = Math.sin(performance.now() / 680) * 2.5;
+      let cursorX = startX;
+      for (let i = 0; i < max; i += 1) {
+        const sub = lineup[i] || {};
+        const subWidth = widths[i];
+        const x = cursorX + (subWidth / 2);
         const y = baseY - 64 + bob;
         const skin = this.colorFromName(sub.name || `player-${i}`);
         const isSelf = !!sub.isSelf;
-        const scale = isSelf ? 1 : 0.58;
+        const scale = isSelf ? mainScale : otherScale;
         this.ctx.save();
         this.ctx.translate(x, y);
         this.ctx.rotate(this.submarine.tilt * (isSelf ? 1 : 0.6));
@@ -516,6 +534,7 @@
         this.ctx.fillStyle = role === "Player" ? "rgba(130, 255, 170, 0.95)" : "rgba(190, 220, 255, 0.9)";
         this.ctx.fillText(role, x, y - (isSelf ? 26 : 16));
         this.ctx.restore();
+        cursorX += subWidth + gap;
       }
     }
 
