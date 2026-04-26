@@ -68,33 +68,69 @@
       this.tintEl.style.opacity = `${Math.min(0.94, tintOpacity)}`;
     }
 
+    hashKey(key) {
+      const str = String(key || "default");
+      let h = 0;
+      for (let i = 0; i < str.length; i += 1) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+      return Math.abs(h);
+    }
+
+    getTrailStyle(trailKey) {
+      const k = String(trailKey || "default");
+      if (k === "pearl") return { mode: "pearl", hue: 204, sat: 86, light: 74, glow: 0.55 };
+      if (k === "sonar") return { mode: "ring", hue: 186, sat: 95, light: 62, glow: 0.4 };
+      if (k === "default") return { mode: "line", hue: 202, sat: 84, light: 86, glow: 0.3 };
+      const seed = this.hashKey(k);
+      const modes = ["line", "ring", "glow", "spark"];
+      return {
+        mode: modes[seed % modes.length],
+        hue: 160 + (seed % 180),
+        sat: 68 + (seed % 24),
+        light: 54 + (seed % 30),
+        glow: 0.25 + ((seed % 50) / 100)
+      };
+    }
+
+    getCrashStyle(crashKey) {
+      const k = String(crashKey || "default");
+      if (k === "electric") return { count: 88, gravity: 52, hot: "#7df9ff", cool: "#4c6fff", mode: "spark" };
+      if (k === "ink") return { count: 72, gravity: 35, hot: "#4a2d6e", cool: "#1a0f28", mode: "ink" };
+      if (k === "default") return { count: 65, gravity: 60, hot: "#ffd479", cool: "#ff7f66", mode: "flare" };
+      const seed = this.hashKey(k);
+      const hueA = seed % 360;
+      const hueB = (hueA + 46 + (seed % 70)) % 360;
+      const modes = ["flare", "spark", "mist", "ember"];
+      return {
+        count: 64 + (seed % 34),
+        gravity: 34 + (seed % 46),
+        hot: `hsl(${hueA}, ${72 + (seed % 20)}%, ${58 + (seed % 24)}%)`,
+        cool: `hsl(${hueB}, ${58 + (seed % 20)}%, ${34 + (seed % 16)}%)`,
+        mode: modes[seed % modes.length]
+      };
+    }
+
     triggerCrashExplosion() {
       const px = this.getSubmarineX();
       const py = this.submarine.y * this.height;
       const fx = this.scene.cosmeticCrash || "default";
-      const count = fx === "electric" ? 88 : fx === "ink" ? 72 : 65;
+      const style = this.getCrashStyle(fx);
+      const count = style.count;
       for (let i = 0; i < count; i += 1) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 60 + Math.random() * 260;
-        let hot = "#ffd479";
-        let cool = "#ff7f66";
-        if (fx === "electric") {
-          hot = Math.random() < 0.5 ? "#7df9ff" : "#fff6a8";
-          cool = "#4c6fff";
-        } else if (fx === "ink") {
-          hot = "#4a2d6e";
-          cool = "#1a0f28";
-        }
+        const hot = style.mode === "spark" && Math.random() < 0.38 ? "#fff6a8" : style.hot;
+        const cool = style.cool;
         this.explosionParticles.push({
           x: px,
           y: py,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           life: 1,
-          size: fx === "ink" ? 1.5 + Math.random() * 3.2 : 2 + Math.random() * 4,
+          size: style.mode === "ink" ? 1.5 + Math.random() * 3.4 : 2 + Math.random() * 4.4,
           hot,
           cool,
-          gravity: fx === "ink" ? 35 : 60
+          gravity: style.gravity,
+          mode: style.mode
         });
       }
       this.scene.crashShake = 0.45;
@@ -122,15 +158,15 @@
 
     emitBubble(x, y, scale = 1) {
       const trail = this.scene.cosmeticTrail || "default";
-      const kind = trail === "pearl" ? "pearl" : trail === "sonar" ? "sonar" : "default";
+      const style = this.getTrailStyle(trail);
       this.bubbles.push({
         x,
         y,
-        r: (2 + Math.random() * 5) * scale * (kind === "pearl" ? 1.15 : 1),
+        r: (2 + Math.random() * 5) * scale * (style.mode === "pearl" ? 1.15 : 1),
         vy: -25 - Math.random() * 70,
         vx: -6 + Math.random() * 12,
         life: 1.8 + Math.random(),
-        kind
+        trailStyle: style
       });
     }
 
@@ -441,7 +477,8 @@
     drawBubbles() {
       for (const b of this.bubbles) {
         this.ctx.globalAlpha = Math.max(0, b.life / 2.7);
-        const k = b.kind || "default";
+        const style = b.trailStyle || this.getTrailStyle("default");
+        const k = style.mode;
         if (k === "pearl") {
           const g = this.ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, 0, b.x, b.y, b.r);
           g.addColorStop(0, "rgba(255,255,255,0.95)");
@@ -451,18 +488,35 @@
           this.ctx.beginPath();
           this.ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
           this.ctx.fill();
-        } else if (k === "sonar") {
-          this.ctx.strokeStyle = "rgba(120, 240, 255, 0.55)";
+        } else if (k === "ring") {
+          this.ctx.strokeStyle = `hsla(${style.hue}, ${style.sat}%, ${style.light}%, 0.6)`;
           this.ctx.lineWidth = 1.2;
           this.ctx.beginPath();
           this.ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
           this.ctx.stroke();
-          this.ctx.strokeStyle = "rgba(120, 240, 255, 0.2)";
+          this.ctx.strokeStyle = `hsla(${style.hue}, ${style.sat}%, ${style.light + 8}%, 0.24)`;
           this.ctx.beginPath();
           this.ctx.arc(b.x, b.y, b.r + 3 + Math.sin(b.life * 6) * 2, 0, Math.PI * 2);
           this.ctx.stroke();
+        } else if (k === "glow") {
+          const g = this.ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 1.7);
+          g.addColorStop(0, `hsla(${style.hue}, ${style.sat}%, ${Math.min(98, style.light + 30)}%, 0.86)`);
+          g.addColorStop(1, `hsla(${style.hue}, ${style.sat}%, ${style.light}%, 0.03)`);
+          this.ctx.fillStyle = g;
+          this.ctx.beginPath();
+          this.ctx.arc(b.x, b.y, b.r * 1.5, 0, Math.PI * 2);
+          this.ctx.fill();
+        } else if (k === "spark") {
+          this.ctx.strokeStyle = `hsla(${style.hue}, ${style.sat}%, ${style.light}%, 0.9)`;
+          this.ctx.lineWidth = 1.4;
+          this.ctx.beginPath();
+          this.ctx.moveTo(b.x - b.r, b.y - b.r * 0.6);
+          this.ctx.lineTo(b.x + b.r, b.y + b.r * 0.6);
+          this.ctx.moveTo(b.x - b.r * 0.6, b.y + b.r);
+          this.ctx.lineTo(b.x + b.r * 0.6, b.y - b.r);
+          this.ctx.stroke();
         } else {
-          this.ctx.strokeStyle = "rgba(215, 240, 255, 0.9)";
+          this.ctx.strokeStyle = `hsla(${style.hue}, ${style.sat}%, ${Math.min(95, style.light + 24)}%, 0.88)`;
           this.ctx.lineWidth = 1.4;
           this.ctx.beginPath();
           this.ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
@@ -478,9 +532,32 @@
         const hot = p.hot || "#ffd479";
         const cool = p.cool || "#ff7f66";
         this.ctx.fillStyle = p.life > 0.45 ? hot : cool;
-        this.ctx.beginPath();
-        this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        this.ctx.fill();
+        if (p.mode === "spark") {
+          this.ctx.lineWidth = Math.max(1.2, p.size * 0.55);
+          this.ctx.strokeStyle = this.ctx.fillStyle;
+          this.ctx.beginPath();
+          this.ctx.moveTo(p.x - p.size * 1.4, p.y);
+          this.ctx.lineTo(p.x + p.size * 1.4, p.y);
+          this.ctx.moveTo(p.x, p.y - p.size * 1.4);
+          this.ctx.lineTo(p.x, p.y + p.size * 1.4);
+          this.ctx.stroke();
+        } else if (p.mode === "mist") {
+          const g = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.6);
+          g.addColorStop(0, this.ctx.fillStyle);
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          this.ctx.fillStyle = g;
+          this.ctx.beginPath();
+          this.ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
+          this.ctx.fill();
+        } else if (p.mode === "ember") {
+          this.ctx.beginPath();
+          this.ctx.ellipse(p.x, p.y, p.size * 1.1, p.size * 0.75, 0.5, 0, Math.PI * 2);
+          this.ctx.fill();
+        } else {
+          this.ctx.beginPath();
+          this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
       }
       this.ctx.globalAlpha = 1;
     }

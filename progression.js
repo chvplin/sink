@@ -84,10 +84,42 @@
     "Ironwave Snap", "Trench Supernova", "Pearl Quake", "Cinder Wake", "Neptune Burst",
     "Starlit Collapse", "Razor Tide", "Signal Detonation"
   ];
-  const SKIN_ROTATION = [
-    "classic", "crew_rescue", "explorer", "salvage", "military", "steampunk", "neon", "whale", "bio",
-    "abyss", "treasure", "glacier", "arc", "gold", "kraken", "void", "celestial"
-  ];
+  const hueToHex = (h, s, l) => {
+    const sat = Math.max(0, Math.min(100, s)) / 100;
+    const light = Math.max(0, Math.min(100, l)) / 100;
+    const c = (1 - Math.abs(2 * light - 1)) * sat;
+    const hp = ((h % 360) + 360) % 360 / 60;
+    const x = c * (1 - Math.abs((hp % 2) - 1));
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    if (hp < 1) [r, g, b] = [c, x, 0];
+    else if (hp < 2) [r, g, b] = [x, c, 0];
+    else if (hp < 3) [r, g, b] = [0, c, x];
+    else if (hp < 4) [r, g, b] = [0, x, c];
+    else if (hp < 5) [r, g, b] = [x, 0, c];
+    else [r, g, b] = [c, 0, x];
+    const m = light - c / 2;
+    const toHex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  };
+  const skinRarityByIndex = ["Rare", "Rare", "Epic", "Legendary"];
+  const EXTRA_SUBMARINE_SKINS = EXTRA_SUBMARINE_THEMES.map((name, idx) => {
+    const baseHue = (idx * 37 + 18) % 360;
+    const rarity = skinRarityByIndex[idx % skinRarityByIndex.length];
+    return {
+      id: `extra_skin_${idx + 1}`,
+      name: `${name} Hull`,
+      rarity,
+      colors: {
+        body: hueToHex(baseHue, 68 + (idx % 18), 52 + (idx % 10)),
+        accent: hueToHex(baseHue + 22, 64 + (idx % 16), 36 + (idx % 12)),
+        trim: hueToHex(baseHue + 190, 26 + (idx % 12), 14 + (idx % 8))
+      },
+      unlock: { type: "roundsPlayed", value: 180 + idx * 16 }
+    };
+  });
+
   const RARITY_BY_INDEX = ["Common", "Common", "Rare", "Rare", "Epic", "Legendary"];
   const slugifyCosmetic = (text) =>
     String(text || "")
@@ -105,7 +137,7 @@
         category: "submarines",
         rarity,
         price,
-        skinMap: SKIN_ROTATION[idx % SKIN_ROTATION.length],
+        skinMap: `extra_skin_${idx + 1}`,
         asset: "assets/cosmetics/abyss_sub.png"
       };
     }),
@@ -162,7 +194,7 @@
   ];
 
   window.ProgressionContent = {
-    SUBMARINE_SKINS,
+    SUBMARINE_SKINS: [...SUBMARINE_SKINS, ...EXTRA_SUBMARINE_SKINS],
     COSMETIC_SHOP_ITEMS,
     ACHIEVEMENTS,
     DAILY_CHALLENGE_POOL,
