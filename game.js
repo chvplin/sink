@@ -1938,6 +1938,9 @@
       isActiveRound: gameState.phase === "active",
       didCrash: gameState.didCrash,
       isLuckyRound: gameState.isLuckyRound && gameState.phase === "active",
+      selfDisplayName: typeof dataService.getCurrentDisplayName === "function"
+        ? dataService.getCurrentDisplayName()
+        : "You",
       equippedSkin: getEquippedSkin().colors,
       cosmeticTrail: cv.trailKey,
       cosmeticCrash: cv.crashKey,
