@@ -452,6 +452,23 @@ body.mobile-ui .mobile-modal-body .friends-panel {
   max-height: none;
 }
 
+/* Friends modal: beat .tab-panel:not(#panel-play){display:none!important} specificity */
+body.mobile-ui .mobile-modal-root[data-panel="friends"] .mobile-modal-body #panel-friends.tab-panel.friends-panel {
+  display: flex !important;
+  flex-direction: column;
+  gap: 12px;
+  max-height: none !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
+}
+
+body.mobile-ui .mobile-modal-root[data-panel="friends"] .mobile-modal-body #friends-search-form,
+body.mobile-ui .mobile-modal-root[data-panel="friends"] .mobile-modal-body #friends-search-input,
+body.mobile-ui .mobile-modal-root[data-panel="friends"] .mobile-modal-body #friends-incoming-list,
+body.mobile-ui .mobile-modal-root[data-panel="friends"] .mobile-modal-body [data-friends-act] {
+  pointer-events: auto !important;
+}
+
 body.mobile-ui .mobile-modal-body .desktop-panel-close {
   display: none !important;
 }
@@ -638,7 +655,7 @@ body.mobile-ui .friends-transfer-modal {
 }
 
 body.mobile-ui .post-round-summary {
-  z-index: 2450 !important;
+  z-index: 1500 !important;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important;
 }
 
