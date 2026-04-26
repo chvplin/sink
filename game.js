@@ -62,6 +62,7 @@
     seenJoinUsers: new Set(),
     joinPollPrimed: false,
     recentJoinRoster: [],
+    playerPresenceByUserId: {},
     stallRecoveryAttemptForRound: "",
     lastVisibilityResyncAt: 0,
     serverAuthoritativeRounds: false,
@@ -1663,6 +1664,11 @@
       if (typeof dataService.fetchRecentPlayerJoins === "function") {
         const joins = await dataService.fetchRecentPlayerJoins(20);
         gameState.recentJoinRoster = Array.isArray(joins) ? joins.slice() : [];
+        joins.forEach((j) => {
+          if (!j || !j.userId) return;
+          const joinedMs = j.createdAt ? Date.parse(j.createdAt) : now;
+          upsertPlayerPresence(j.userId, j.displayName || "Player", Number.isFinite(joinedMs) ? joinedMs : now);
+        });
         const me = dataService.user.id;
         if (!gameState.joinPollPrimed) {
           gameState.joinPollPrimed = true;
@@ -1815,6 +1821,20 @@
     }
   }
 
+  function upsertPlayerPresence(userId, displayName, seenAtMs = Date.now()) {
+    const uid = String(userId || "").trim();
+    if (!uid) return;
+    const nm = String(displayName || "Player").trim() || "Player";
+    const ts = Number(seenAtMs) || Date.now();
+    const prev = gameState.playerPresenceByUserId[uid] || null;
+    if (!prev) {
+      gameState.playerPresenceByUserId[uid] = { userId: uid, name: nm, lastSeenAt: ts };
+      return;
+    }
+    prev.name = nm || prev.name || "Player";
+    prev.lastSeenAt = Math.max(Number(prev.lastSeenAt) || 0, ts);
+  }
+
   function buildVisibleSubmarinesSceneState() {
     const isDesktop = !(typeof document !== "undefined" && document.body && document.body.classList.contains("mobile-ui"));
     if (!isDesktop) return [];
@@ -1850,6 +1870,9 @@
       const uid = String(j && j.userId ? j.userId : "").trim();
       if (!uid) return;
       const createdAtMs = j && j.createdAt ? Date.parse(j.createdAt) : 0;
+      if (Number.isFinite(createdAtMs) && createdAtMs > 0) {
+        upsertPlayerPresence(uid, String((j && j.displayName) || "Player"), createdAtMs);
+      }
       if (Number.isFinite(createdAtMs) && createdAtMs > 0 && createdAtMs < freshnessCutoff) return;
       if (!rosterMap.has(uid)) {
         rosterMap.set(uid, {
@@ -1863,12 +1886,30 @@
     live.forEach((b) => {
       const uid = String(b && b.userId ? b.userId : "").trim();
       if (!uid) return;
+      upsertPlayerPresence(uid, String((b && b.name) || "Player"), Date.now());
       if (uid === meId && rosterMap.has(selfKey)) return;
       if (!rosterMap.has(uid)) {
         rosterMap.set(uid, {
           userId: uid,
           sourceUserId: uid,
           name: String((b && b.name) || "Player"),
+          isSelf: !!(meId && uid === meId)
+        });
+      }
+    });
+    const presenceValues = Object.values(gameState.playerPresenceByUserId || {});
+    const presenceCutoff = Date.now() - (90 * 1000);
+    presenceValues.forEach((p) => {
+      const uid = String(p && p.userId ? p.userId : "").trim();
+      if (!uid) return;
+      const lastSeen = Number(p && p.lastSeenAt) || 0;
+      if (lastSeen < presenceCutoff) return;
+      if (uid === meId && rosterMap.has(selfKey)) return;
+      if (!rosterMap.has(uid)) {
+        rosterMap.set(uid, {
+          userId: uid,
+          sourceUserId: uid,
+          name: String((p && p.name) || "Player"),
           isSelf: !!(meId && uid === meId)
         });
       }
