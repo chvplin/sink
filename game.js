@@ -72,8 +72,12 @@
     _lastServerOffsetRefresh: 0,
     _agentDbgTickLogAt: 0,
     _serverModeRetryAt: 0,
+    _forceLocalFallbackUntil: 0,
     _lastFailsafeTickAt: 0,
     _lastGlobalRefetchAt: 0,
+    _lastGlobalProgressAt: 0,
+    _lastGlobalSeqSeen: null,
+    _lastGlobalStatusSeen: "",
     _lastLiveBetsSnapshot: [],
     postRoundSummaryVisible: false,
     _postRoundSummaryRoundSeq: null,
@@ -186,6 +190,22 @@
     syncLog("server offset refreshed", `${gameState.serverTimeOffsetMs}ms`);
   }
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
+  function degradeToLocalLoop(reason) {
+    if (!gameState.serverAuthoritativeRounds) return;
+    syncLog("degrade to local loop", reason);
+    gameState.serverAuthoritativeRounds = false;
+    gameState.globalRoundRow = null;
+    gameState._forceLocalFallbackUntil = Date.now() + 120000;
+    gameState._serverModeRetryAt = Date.now() + 10000;
+    if (gameState._globalRoundUnsub) {
+      try { gameState._globalRoundUnsub(); } catch (e) { /* ignore */ }
+      gameState._globalRoundUnsub = null;
+    }
+    ui.showToast("Sync", "Global round sync stalled. Continuing with local loop.");
+    if (!gameState.roundId || gameState.phase === "crashed") {
+      beginPreRound();
+    }
+  }
 
   function getEquippedSkin() {
     const catalog = content.COSMETIC_SHOP_ITEMS || [];
@@ -1099,6 +1119,13 @@
       ui.setCountdown(0);
       return;
     }
+    const seqNow = Number(row.round_seq);
+    const statusNow = String(row.status || "");
+    if (gameState._lastGlobalSeqSeen !== seqNow || gameState._lastGlobalStatusSeen !== statusNow) {
+      gameState._lastGlobalSeqSeen = seqNow;
+      gameState._lastGlobalStatusSeen = statusNow;
+      gameState._lastGlobalProgressAt = Date.now();
+    }
 
     const seq = Number(row.round_seq);
     const dur = Number(row.countdown_ms) || 10000;
@@ -1274,7 +1301,7 @@
   }
 
   function wantsGlobalServerMode() {
-    return isGlobalMode();
+    return isGlobalMode() && Date.now() >= (gameState._forceLocalFallbackUntil || 0);
   }
 
   function tickClientRounds(now) {
@@ -1760,6 +1787,7 @@
 
   function evaluateAutoStopConditions() {
     const s = profile.settings;
+    if (!s.autoBetEnabled) return;
     if ((s.autoStopAfterWins > 0 && gameState.autoWins >= s.autoStopAfterWins)
       || (s.autoStopAfterLosses > 0 && gameState.autoLosses >= s.autoStopAfterLosses)
       || (s.autoStopBalanceBelow > 0 && profile.balance < s.autoStopBalanceBelow)) {
@@ -1797,6 +1825,10 @@
       syncLiveBets();
       pollSocialLayer(now);
       tickServerRounds(serverNowMs());
+      const staleFor = now - (gameState._lastGlobalProgressAt || 0);
+      if (gameState._lastGlobalProgressAt > 0 && staleFor > 30000) {
+        degradeToLocalLoop(`no global round progress for ${staleFor}ms`);
+      }
     } else {
       if (wantsGlobalServerMode()) {
         if (now >= gameState._serverModeRetryAt) {
