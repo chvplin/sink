@@ -575,6 +575,7 @@
         return Array.from(latestByUser.values())
           .filter((p) => p.status === "active")
           .map((p) => ({
+            userId: p.userId || p.playerId || "",
             name: p.displayName || p.playerId || "Player",
             amount: Number(p.amount || 0)
           }));

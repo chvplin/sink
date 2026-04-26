@@ -20,7 +20,7 @@
         cosmeticTrail: "default",
         cosmeticCrash: "default",
         cosmeticDiver: "default",
-        otherSubmarines: []
+        visibleSubmarines: []
       };
 
       this.submarine = {
@@ -459,33 +459,30 @@
       };
     }
 
-    drawOtherSubmarines() {
-      if (this.scene.didCrash) return;
-      const others = Array.isArray(this.scene.otherSubmarines) ? this.scene.otherSubmarines : [];
-      if (others.length === 0) return;
+    drawVisibleSubmarinesLineup() {
+      const allSubs = Array.isArray(this.scene.visibleSubmarines) ? this.scene.visibleSubmarines : [];
+      if (allSubs.length === 0) return;
       const isDesktop = this.width >= 900;
       if (!isDesktop) return;
-      const slots = [
-        { x: 0.18, y: -0.055, tilt: -0.03 },
-        { x: 0.31, y: -0.085, tilt: -0.05 },
-        { x: 0.74, y: -0.08, tilt: 0.04 },
-        { x: 0.86, y: -0.05, tilt: 0.025 },
-        { x: 0.2, y: 0.08, tilt: -0.02 },
-        { x: 0.8, y: 0.08, tilt: 0.02 }
-      ];
+      const mySub = allSubs.find((s) => s && s.isSelf);
+      const others = allSubs.filter((s) => !s || !s.isSelf);
+      const lineup = mySub ? [mySub, ...others] : allSubs.slice();
+      const max = Math.min(12, lineup.length);
+      if (max <= 0) return;
+      const gap = this.width / (max + 1);
       const baseY = this.submarine.y * this.height;
       const bob = Math.sin(performance.now() / 680) * 2.5;
-      const max = Math.min(slots.length, others.length);
       for (let i = 0; i < max; i += 1) {
-        const sub = others[i] || {};
-        const slot = slots[i];
-        const x = this.width * slot.x;
-        const y = baseY + (this.height * slot.y) + bob;
+        const sub = lineup[i] || {};
+        const x = gap * (i + 1);
+        const y = baseY - 64 + bob;
         const skin = this.colorFromName(sub.name || `player-${i}`);
+        const isSelf = !!sub.isSelf;
+        const scale = isSelf ? 1 : 0.58;
         this.ctx.save();
         this.ctx.translate(x, y);
-        this.ctx.rotate(this.submarine.tilt * 0.6 + slot.tilt);
-        this.ctx.scale(0.58, 0.58);
+        this.ctx.rotate(this.submarine.tilt * (isSelf ? 1 : 0.6));
+        this.ctx.scale(scale, scale);
         this.ctx.fillStyle = skin.body;
         this.ctx.strokeStyle = skin.trim;
         this.ctx.lineWidth = 3;
@@ -503,6 +500,21 @@
         this.ctx.fillRect(-86, -6, 16, 12);
         this.ctx.fillStyle = "#203764";
         this.ctx.fillRect(66, -20, 14, 40);
+        this.ctx.restore();
+
+        const labelName = String(sub.name || "Player").slice(0, 14);
+        const role = String(sub.roleLabel || (isSelf ? "Player" : "Spectator"));
+        this.ctx.save();
+        this.ctx.textAlign = "center";
+        this.ctx.font = isSelf ? "700 14px Segoe UI" : "600 12px Segoe UI";
+        this.ctx.fillStyle = "rgba(223, 243, 255, 0.98)";
+        this.ctx.strokeStyle = "rgba(10, 22, 40, 0.75)";
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(labelName, x, y - (isSelf ? 42 : 30));
+        this.ctx.fillText(labelName, x, y - (isSelf ? 42 : 30));
+        this.ctx.font = "600 11px Segoe UI";
+        this.ctx.fillStyle = role === "Player" ? "rgba(130, 255, 170, 0.95)" : "rgba(190, 220, 255, 0.9)";
+        this.ctx.fillText(role, x, y - (isSelf ? 26 : 16));
         this.ctx.restore();
       }
     }
@@ -661,8 +673,7 @@
       this.ctx.restore();
 
       this.drawBubbles();
-      this.drawOtherSubmarines();
-      this.drawSubmarine();
+      this.drawVisibleSubmarinesLineup();
       this.drawDivers();
       this.drawExplosion();
       this.ctx.restore();

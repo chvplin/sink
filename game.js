@@ -59,6 +59,7 @@
     lastJoinPollAt: 0,
     seenJoinKeys: new Set(),
     joinPollPrimed: false,
+    recentJoinRoster: [],
     stallRecoveryAttemptForRound: "",
     lastVisibilityResyncAt: 0,
     serverAuthoritativeRounds: false,
@@ -1655,6 +1656,7 @@
       gameState.lastJoinPollAt = now;
       if (typeof dataService.fetchRecentPlayerJoins === "function") {
         const joins = await dataService.fetchRecentPlayerJoins(20);
+        gameState.recentJoinRoster = Array.isArray(joins) ? joins.slice() : [];
         const me = dataService.user.id;
         if (!gameState.joinPollPrimed) {
           gameState.joinPollPrimed = true;
@@ -1703,7 +1705,11 @@
     if (!force && now - gameState.lastLiveBetsSyncAt < 1200) return;
     gameState.lastLiveBetsSyncAt = now;
     const bets = await dataService.fetchLiveBets(gameState.roundId);
-    gameState._lastLiveBetsSnapshot = Array.isArray(bets) ? bets.map((b) => ({ name: b.name, amount: Number(b.amount) || 0 })) : [];
+    gameState._lastLiveBetsSnapshot = Array.isArray(bets) ? bets.map((b) => ({
+      name: b.name,
+      amount: Number(b.amount) || 0,
+      userId: String(b.userId || "")
+    })) : [];
     ui.renderLiveBets(bets);
   }
 
@@ -1800,22 +1806,51 @@
     }
   }
 
-  function buildOtherSubmarinesSceneState() {
+  function buildVisibleSubmarinesSceneState() {
     const isDesktop = !(typeof document !== "undefined" && document.body && document.body.classList.contains("mobile-ui"));
     if (!isDesktop) return [];
+    const meId = dataService && dataService.user ? dataService.user.id : "";
+    const meName = typeof dataService.getCurrentDisplayName === "function"
+      ? String(dataService.getCurrentDisplayName() || "Player").trim()
+      : "Player";
     const live = Array.isArray(gameState._lastLiveBetsSnapshot) ? gameState._lastLiveBetsSnapshot : [];
-    if (live.length === 0) return [];
-    const myName = typeof dataService.getCurrentDisplayName === "function"
-      ? String(dataService.getCurrentDisplayName() || "Player").trim().toLowerCase()
-      : "";
-    const others = live
-      .filter((b) => {
-        const nm = String(b && b.name ? b.name : "").trim().toLowerCase();
-        return nm && (!myName || nm !== myName);
-      })
-      .slice(0, 6)
-      .map((b) => ({ name: String(b.name || "Player"), amount: Number(b.amount) || 0 }));
-    return others;
+    const activeByUser = new Set(
+      live
+        .map((b) => String(b && b.userId ? b.userId : "").trim())
+        .filter(Boolean)
+    );
+    const rosterMap = new Map();
+    if (meId) {
+      rosterMap.set(meId, {
+        userId: meId,
+        name: meName || "Player",
+        isSelf: true
+      });
+    }
+    const freshnessCutoff = Date.now() - (2 * 60 * 1000);
+    const joins = Array.isArray(gameState.recentJoinRoster) ? gameState.recentJoinRoster : [];
+    joins.forEach((j) => {
+      const uid = String(j && j.userId ? j.userId : "").trim();
+      if (!uid) return;
+      const createdAtMs = j && j.createdAt ? Date.parse(j.createdAt) : 0;
+      if (Number.isFinite(createdAtMs) && createdAtMs > 0 && createdAtMs < freshnessCutoff) return;
+      if (!rosterMap.has(uid)) {
+        rosterMap.set(uid, {
+          userId: uid,
+          name: String((j && j.displayName) || "Player"),
+          isSelf: uid === meId
+        });
+      }
+    });
+    const roster = Array.from(rosterMap.values())
+      .map((p) => ({
+        userId: p.userId,
+        name: p.name || "Player",
+        isSelf: !!p.isSelf,
+        roleLabel: activeByUser.has(p.userId) ? "Player" : "Spectator"
+      }))
+      .slice(0, 12);
+    return roster;
   }
 
   function tick() {
@@ -1888,7 +1923,7 @@
       cosmeticTrail: cv.trailKey,
       cosmeticCrash: cv.crashKey,
       cosmeticDiver: cv.diverKey,
-      otherSubmarines: buildOtherSubmarinesSceneState()
+      visibleSubmarines: buildVisibleSubmarinesSceneState()
     });
     if (ui.isPostRoundSummaryVisible()) {
       const sec = ui.getCountdownSeconds();
