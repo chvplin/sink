@@ -2031,8 +2031,21 @@
       pollSocialLayer(now);
       tickServerRounds(serverNowMs());
       const staleFor = now - (gameState._lastGlobalProgressAt || 0);
-      if (gameState._lastGlobalProgressAt > 0 && staleFor > 30000) {
-        degradeToLocalLoop(`no global round progress for ${staleFor}ms`);
+      const gr = gameState.globalRoundRow;
+      if (gameState._lastGlobalProgressAt > 0 && staleFor > 45000 && gr) {
+        const status = String(gr.status || "");
+        const clock = serverNowMs();
+        const cdEnd = gr.countdown_ends_at ? new Date(gr.countdown_ends_at).getTime() : NaN;
+        const crashAtMs = gr.crash_at ? new Date(gr.crash_at).getTime() : NaN;
+        const crashedAtMs = gr.crashed_at ? new Date(gr.crashed_at).getTime() : NaN;
+        const shouldDegrade = (
+          (status === "countdown" && Number.isFinite(cdEnd) && clock > cdEnd + 45000)
+          || (status === "active" && !Number.isFinite(crashAtMs) && staleFor > 70000)
+          || (status === "crashed" && Number.isFinite(crashedAtMs) && clock > crashedAtMs + 60000)
+        );
+        if (shouldDegrade) {
+          degradeToLocalLoop(`global row stalled: status=${status} staleFor=${staleFor}ms`);
+        }
       }
     } else {
       if (wantsGlobalServerMode()) {
