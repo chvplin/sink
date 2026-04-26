@@ -1810,6 +1810,7 @@
     const isDesktop = !(typeof document !== "undefined" && document.body && document.body.classList.contains("mobile-ui"));
     if (!isDesktop) return [];
     const meId = dataService && dataService.user ? dataService.user.id : "";
+    const selfKey = meId || "__local_self__";
     const meName = typeof dataService.getCurrentDisplayName === "function"
       ? String(dataService.getCurrentDisplayName() || "Player").trim()
       : "Player";
@@ -1820,9 +1821,16 @@
         .filter(Boolean)
     );
     const rosterMap = new Map();
-    if (meId) {
+    rosterMap.set(selfKey, {
+      userId: selfKey,
+      sourceUserId: meId || "",
+      name: meName || "Player",
+      isSelf: true
+    });
+    if (meId && !rosterMap.has(meId)) {
       rosterMap.set(meId, {
         userId: meId,
+        sourceUserId: meId,
         name: meName || "Player",
         isSelf: true
       });
@@ -1837,8 +1845,9 @@
       if (!rosterMap.has(uid)) {
         rosterMap.set(uid, {
           userId: uid,
+          sourceUserId: uid,
           name: String((j && j.displayName) || "Player"),
-          isSelf: uid === meId
+          isSelf: !!(meId && uid === meId)
         });
       }
     });
@@ -1847,7 +1856,7 @@
         userId: p.userId,
         name: p.name || "Player",
         isSelf: !!p.isSelf,
-        roleLabel: activeByUser.has(p.userId) ? "Player" : "Spectator"
+        roleLabel: activeByUser.has(p.sourceUserId || p.userId) ? "Player" : "Spectator"
       }))
       .slice(0, 12);
     return roster;

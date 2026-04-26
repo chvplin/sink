@@ -465,22 +465,21 @@
       const isDesktop = this.width >= 900;
       if (!isDesktop) return;
       const mySub = allSubs.find((s) => s && s.isSelf);
-      const others = allSubs.filter((s) => !s || !s.isSelf);
-      const lineup = mySub ? [mySub, ...others] : allSubs.slice();
-      const max = Math.min(12, lineup.length);
+      const lineup = allSubs.filter((s) => s && !s.isSelf);
+      const max = Math.min(10, lineup.length);
       if (max <= 0) return;
-      const innerWidth = this.width * 0.92;
-      const startX = (this.width - innerWidth) / 2;
-      const baseMainWidth = 152;
+      const leftPad = Math.max(24, this.width * 0.04);
+      // Keep clear of desktop right-side HUD/chat panel.
+      const rightPad = Math.max(280, this.width * 0.24);
+      const innerWidth = Math.max(220, this.width - leftPad - rightPad);
+      const startX = leftPad;
       const baseOtherWidth = 152 * 0.58;
-      const baseTotalWidth = (baseMainWidth + Math.max(0, max - 1) * baseOtherWidth);
+      const baseTotalWidth = Math.max(0, max * baseOtherWidth);
       const crowdScale = Math.min(1, Math.max(0.4, innerWidth / Math.max(baseTotalWidth, 1)));
-      const mainScale = 1 * crowdScale;
       const otherScale = 0.58 * crowdScale;
       const widths = [];
       for (let i = 0; i < max; i += 1) {
-        const sub = lineup[i] || {};
-        widths.push((sub.isSelf ? baseMainWidth * mainScale : baseMainWidth * otherScale));
+        widths.push(baseOtherWidth * crowdScale);
       }
       const usedWidth = widths.reduce((sum, w) => sum + w, 0);
       const minGap = Math.max(8, this.width * 0.008);
@@ -495,8 +494,8 @@
         const x = cursorX + (subWidth / 2);
         const y = baseY - 64 + bob;
         const skin = this.colorFromName(sub.name || `player-${i}`);
-        const isSelf = !!sub.isSelf;
-        const scale = isSelf ? mainScale : otherScale;
+        const isSelf = false;
+        const scale = otherScale;
         this.ctx.save();
         this.ctx.translate(x, y);
         this.ctx.rotate(this.submarine.tilt * (isSelf ? 1 : 0.6));
@@ -693,6 +692,7 @@
 
       this.drawBubbles();
       this.drawVisibleSubmarinesLineup();
+      this.drawSubmarine();
       this.drawDivers();
       this.drawExplosion();
       this.ctx.restore();
