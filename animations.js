@@ -169,9 +169,10 @@
       const crowdScale = Math.min(1, Math.max(0.4, innerWidth / Math.max(baseTotalWidth, 1)));
       const subWidth = baseOtherWidth * crowdScale;
       const usedWidth = subWidth * max;
-      const minGap = Math.max(8, this.width * 0.008);
+      // Keep lineup visually side-by-side with only a tiny non-touching gap.
+      const minGap = Math.max(2, this.width * 0.0025);
       const availableGaps = Math.max(0, innerWidth - usedWidth);
-      const gap = max > 1 ? Math.max(minGap, availableGaps / (max - 1)) : 0;
+      const gap = max > 1 ? Math.max(minGap, Math.min(14, availableGaps / (max - 1))) : 0;
       const slots = [];
       let cursorX = startX;
       for (let i = 0; i < max; i += 1) {
