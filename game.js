@@ -513,8 +513,12 @@
     ui.setFriendsTransferLoading(true);
     const res = await dataService.transferToFriendRpc(rid, amt);
     ui.setFriendsTransferLoading(false);
-    if (res.ok && res.newBalance != null && Number.isFinite(Number(res.newBalance))) {
-      profile.balance = Number(Number(res.newBalance).toFixed(2));
+    if (res.ok) {
+      if (res.newBalance != null && Number.isFinite(Number(res.newBalance))) {
+        profile.balance = Number(Number(res.newBalance).toFixed(2));
+      } else {
+        profile.balance = Number(Math.max(0, Number(profile.balance || 0) - amt).toFixed(2));
+      }
       saveAll();
       ui.setBalance(profile.balance);
       const nm = ui.el.friendsTransferRecipient ? ui.el.friendsTransferRecipient.textContent : "friend";
@@ -525,6 +529,7 @@
         if (remote) {
           profile = remote;
           if (window.PlayerRecovery) window.PlayerRecovery.ensureRecovery(profile);
+          ui.setBalance(profile.balance);
           renderAllPanels();
         }
       } else {
