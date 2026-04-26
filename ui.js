@@ -382,7 +382,8 @@
     setMultiplier(multiplier) {
       const m = Math.max(1, Number(multiplier) || 1);
       this.el.multiplier.textContent = `${m.toFixed(2)}x`;
-      this.el.multiplier.style.color = multiplier >= 10 ? "#ffd88f" : "#ffffff";
+      const isMobileUi = typeof document !== "undefined" && document.body && document.body.classList.contains("mobile-ui");
+      this.el.multiplier.style.color = isMobileUi ? "#ffd84d" : (multiplier >= 10 ? "#ffd88f" : "#ffffff");
       const norm = Math.min(1, Math.max(0, Math.log10(m) / Math.log10(10000)));
       const marker = document.getElementById("multiplier-rail-marker");
       if (marker) {

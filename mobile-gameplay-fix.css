@@ -42,6 +42,17 @@ body.mobile-ui #multiplier-display.multiplier-value {
   box-shadow: none !important;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55) !important;
   pointer-events: none !important;
+  font-size: clamp(28px, 8vw, 52px) !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+body.mobile-ui #multiplier-display,
+body.mobile-ui #multiplier-display.hidden {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 3990 !important; /* below modal(4000), above all game chrome */
 }
 
 body.mobile-ui .depth-bar-top {
@@ -98,6 +109,7 @@ body.mobile-ui .player-join-banner {
 
 body.mobile-ui .post-round-summary {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 76px) !important;
+  z-index: 2300 !important; /* keep under modal/open windows */
 }
 
 /* ---- Bottom action bar: always tappable, above scene ---- */
