@@ -57,6 +57,86 @@
   ];
 
   /** Cosmetic shop (no gameplay effects). Submarine entries map to existing hangar skin ids. */
+  const EXTRA_SUBMARINE_THEMES = [
+    "Abyssal Cartographer", "Tectonic Harpooner", "Leviathan Lattice", "Nautilus Crown", "Hydroforge Sentinel",
+    "Ventborn Relic", "Obsidian Tide", "Aurora Ballast", "Stormglass Corsair", "Trench Canticle",
+    "Sable Navigator", "Eon Keel", "Moonwake Diver", "Galewake Engine", "Coral Bastion",
+    "Brine Oracle", "Runic Sonar", "Fathom Vanguard", "Typhoon Herald", "Aster Deepstar",
+    "Iron Current", "Riftbound Pilgrim", "Sunken Majesty", "Cryo Lantern", "Vortex Regalia",
+    "Saltfire Empress", "Zenith Hull", "Nightwake Ronin", "Marrow Reef", "Bluesteel Hymn",
+    "Tempest Reliquary", "Aqua Nocturne", "Radiant Kelp", "Abyss Opera"
+  ];
+  const EXTRA_TRAIL_THEMES = [
+    "Prismatic Plume", "Ion Ribbon", "Velvet Bubblewake", "Singing Current", "Starfoam Drift",
+    "Comet Wake", "Silk Sonar", "Rune Mist", "Gilded Foam", "Arc Bloom",
+    "Void Thread", "Quartz Stream", "Lantern Wake", "Thunder Veil", "Ivory Jet",
+    "Cobalt Ribbon", "Saffron Trail", "Tidal Glyph", "Frostwake Spiral", "Neptune Spark",
+    "Mercury Slipstream", "Jade Whorl", "Amber Sweep", "Coral Pulse", "Helix Plume",
+    "Aether Wake", "Solar Spray", "Ghostwake", "Abyss Vapor", "Signal Tide",
+    "Nimbus Line", "Oracle Foam", "Seabloom Drift"
+  ];
+  const EXTRA_CRASH_THEMES = [
+    "Cataclysm Bloom", "Shockglass Fracture", "Tidal Implosion", "Maelstrom Halo", "Abyss Nova",
+    "Stormsigil Burst", "Runequake", "Ember Inkfall", "Fathom Rupture", "Luminous Break",
+    "Oblivion Pulse", "Hydra Detonation", "Sonic Splinter", "Deepflare", "Void Torrent",
+    "Tempest Breaker", "Coral Shatter", "Leviathan Pop", "Cryo Fracture", "Aurora Crash",
+    "Thunder Ink", "Aether Collapse", "Gloomburst", "Vortex Bloom", "Kelp Shock",
+    "Ironwave Snap", "Trench Supernova", "Pearl Quake", "Cinder Wake", "Neptune Burst",
+    "Starlit Collapse", "Razor Tide", "Signal Detonation"
+  ];
+  const SKIN_ROTATION = [
+    "classic", "crew_rescue", "explorer", "salvage", "military", "steampunk", "neon", "whale", "bio",
+    "abyss", "treasure", "glacier", "arc", "gold", "kraken", "void", "celestial"
+  ];
+  const RARITY_BY_INDEX = ["Common", "Common", "Rare", "Rare", "Epic", "Legendary"];
+  const slugifyCosmetic = (text) =>
+    String(text || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
+  const EXTRA_COSMETIC_SHOP_ITEMS = [
+    ...EXTRA_SUBMARINE_THEMES.map((name, idx) => {
+      const rarity = RARITY_BY_INDEX[idx % RARITY_BY_INDEX.length];
+      const price = 900 + idx * 85 + (rarity === "Legendary" ? 800 : rarity === "Epic" ? 450 : rarity === "Rare" ? 220 : 0);
+      return {
+        id: `sub_${slugifyCosmetic(name)}_${idx + 1}`,
+        name: `${name} Sub`,
+        category: "submarines",
+        rarity,
+        price,
+        skinMap: SKIN_ROTATION[idx % SKIN_ROTATION.length],
+        asset: "assets/cosmetics/abyss_sub.png"
+      };
+    }),
+    ...EXTRA_TRAIL_THEMES.map((name, idx) => {
+      const rarity = RARITY_BY_INDEX[(idx + 2) % RARITY_BY_INDEX.length];
+      const price = 280 + idx * 34 + (rarity === "Legendary" ? 420 : rarity === "Epic" ? 220 : rarity === "Rare" ? 90 : 0);
+      return {
+        id: `trail_${slugifyCosmetic(name)}_${idx + 1}`,
+        name,
+        category: "trails",
+        rarity,
+        price,
+        trailKey: `fx_trail_${idx + 1}`,
+        asset: "assets/cosmetics/sonar_trail.png"
+      };
+    }),
+    ...EXTRA_CRASH_THEMES.map((name, idx) => {
+      const rarity = RARITY_BY_INDEX[(idx + 3) % RARITY_BY_INDEX.length];
+      const price = 360 + idx * 38 + (rarity === "Legendary" ? 500 : rarity === "Epic" ? 260 : rarity === "Rare" ? 120 : 0);
+      return {
+        id: `crash_${slugifyCosmetic(name)}_${idx + 1}`,
+        name,
+        category: "crashEffects",
+        rarity,
+        price,
+        crashKey: `fx_crash_${idx + 1}`,
+        asset: "assets/cosmetics/ink_crash.png"
+      };
+    })
+  ];
+
   const COSMETIC_SHOP_ITEMS = [
     { id: "classic_submarine", name: "Classic Yellow (starter)", category: "submarines", rarity: "Common", price: 0, skinMap: "classic", asset: "assets/cosmetics/classic_sub.png" },
     { id: "golden_submarine", name: "Golden Submarine", category: "submarines", rarity: "Legendary", price: 2500, skinMap: "gold", asset: "assets/cosmetics/golden_sub.png" },
@@ -68,7 +148,8 @@
     { id: "gold_diver_suit", name: "Gold Diver Suit", category: "diverSuits", rarity: "Rare", price: 500, diverKey: "gold", asset: "assets/cosmetics/gold_suit.png" },
     { id: "electric_crash_effect", name: "Electric Crash", category: "crashEffects", rarity: "Epic", price: 800, crashKey: "electric", asset: "assets/cosmetics/electric_crash.png" },
     { id: "ink_cloud_crash_effect", name: "Ink Cloud Crash", category: "crashEffects", rarity: "Epic", price: 750, crashKey: "ink", asset: "assets/cosmetics/ink_crash.png" },
-    { id: "captain_profile_frame", name: "Captain Profile Frame", category: "profileFrames", rarity: "Rare", price: 300, frameKey: "captain", asset: "assets/cosmetics/captain_frame.png" }
+    { id: "captain_profile_frame", name: "Captain Profile Frame", category: "profileFrames", rarity: "Rare", price: 300, frameKey: "captain", asset: "assets/cosmetics/captain_frame.png" },
+    ...EXTRA_COSMETIC_SHOP_ITEMS
   ];
 
   const WEEKLY_CHALLENGE_POOL = [

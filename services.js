@@ -777,7 +777,15 @@
         if (error) return { ok: false, message: error.message || "Transfer failed.", newBalance: null };
         const row = Array.isArray(data) ? data[0] : data;
         if (!row) return { ok: false, message: "No response from server.", newBalance: null };
-        const ok = row.success === true || row.success === "t" || row.success === "true";
+        const hasSuccessField = Object.prototype.hasOwnProperty.call(row, "success");
+        const successRaw = row.success;
+        const okFromField = successRaw === true
+          || successRaw === 1
+          || successRaw === "1"
+          || successRaw === "t"
+          || successRaw === "true"
+          || successRaw === "ok";
+        const ok = hasSuccessField ? okFromField : true;
         const msg = row.message || (ok ? "OK" : "Transfer failed.");
         const rawNb = row.new_balance != null ? row.new_balance : row.newBalance;
         const nb = rawNb != null && rawNb !== "" ? Number(rawNb) : null;
