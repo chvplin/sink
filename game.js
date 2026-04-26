@@ -1697,7 +1697,7 @@
         joins.forEach((j) => {
           if (!j || !j.userId) return;
           const joinedMs = j.createdAt ? Date.parse(j.createdAt) : now;
-          upsertPlayerPresence(j.userId, j.displayName || "Player", Number.isFinite(joinedMs) ? joinedMs : now);
+          upsertPlayerPresence(j.userId, j.displayName || "Player", Number.isFinite(joinedMs) ? joinedMs : now, j.skin || null);
         });
         const me = dataService.user.id;
         if (!gameState.joinPollPrimed) {
@@ -1878,18 +1878,26 @@
     }
   }
 
-  function upsertPlayerPresence(userId, displayName, seenAtMs = Date.now()) {
+  function upsertPlayerPresence(userId, displayName, seenAtMs = Date.now(), skin = null) {
     const uid = String(userId || "").trim();
     if (!uid) return;
     const nm = String(displayName || "Player").trim() || "Player";
     const ts = Number(seenAtMs) || Date.now();
+    const validSkin = skin && skin.body && skin.accent && skin.trim
+      ? {
+          body: String(skin.body),
+          accent: String(skin.accent),
+          trim: String(skin.trim)
+        }
+      : null;
     const prev = gameState.playerPresenceByUserId[uid] || null;
     if (!prev) {
-      gameState.playerPresenceByUserId[uid] = { userId: uid, name: nm, lastSeenAt: ts };
+      gameState.playerPresenceByUserId[uid] = { userId: uid, name: nm, lastSeenAt: ts, skin: validSkin };
       return;
     }
     prev.name = nm || prev.name || "Player";
     prev.lastSeenAt = Math.max(Number(prev.lastSeenAt) || 0, ts);
+    if (validSkin) prev.skin = validSkin;
   }
 
   function buildVisibleSubmarinesSceneState() {
@@ -1929,7 +1937,7 @@
       if (!uid) return;
       const createdAtMs = j && j.createdAt ? Date.parse(j.createdAt) : 0;
       if (Number.isFinite(createdAtMs) && createdAtMs > 0) {
-        upsertPlayerPresence(uid, String((j && j.displayName) || "Player"), createdAtMs);
+        upsertPlayerPresence(uid, String((j && j.displayName) || "Player"), createdAtMs, j && j.skin ? j.skin : null);
       }
       if (Number.isFinite(createdAtMs) && createdAtMs > 0 && createdAtMs < freshnessCutoff) return;
       if (!rosterMap.has(uid)) {
@@ -1944,7 +1952,7 @@
     live.forEach((b) => {
       const uid = String(b && b.userId ? b.userId : "").trim();
       if (!uid) return;
-      upsertPlayerPresence(uid, String((b && b.name) || "Player"), Date.now());
+      upsertPlayerPresence(uid, String((b && b.name) || "Player"), Date.now(), b && b.skin ? b.skin : null);
       if (uid === meId && rosterMap.has(selfKey)) return;
       if (!rosterMap.has(uid)) {
         rosterMap.set(uid, {
@@ -1959,7 +1967,7 @@
     realtimePresence.forEach((p) => {
       const uid = String(p && p.userId ? p.userId : "").trim();
       if (!uid) return;
-      upsertPlayerPresence(uid, String((p && p.displayName) || "Player"), Number((p && p.seenAt) || Date.now()));
+      upsertPlayerPresence(uid, String((p && p.displayName) || "Player"), Number((p && p.seenAt) || Date.now()), p && p.skin ? p.skin : null);
       if (uid === meId && rosterMap.has(selfKey)) return;
       if (!rosterMap.has(uid)) {
         rosterMap.set(uid, {
@@ -1988,13 +1996,19 @@
       }
     });
     const roster = Array.from(rosterMap.values())
-      .map((p) => ({
-        userId: p.userId,
-        name: p.name || "Player",
-        isSelf: !!p.isSelf,
-        roleLabel: liveByUser.has(p.sourceUserId || p.userId) ? "Player" : "Spectator",
-        skin: (liveByUser.get(p.sourceUserId || p.userId) || {}).skin || null
-      }))
+      .map((p) => {
+        const sourceUid = p.sourceUserId || p.userId;
+        const liveSkin = (liveByUser.get(sourceUid) || {}).skin || null;
+        const presenceRow = gameState.playerPresenceByUserId ? gameState.playerPresenceByUserId[sourceUid] : null;
+        const presenceSkin = presenceRow && presenceRow.skin ? presenceRow.skin : null;
+        return {
+          userId: p.userId,
+          name: p.name || "Player",
+          isSelf: !!p.isSelf,
+          roleLabel: liveByUser.has(sourceUid) ? "Player" : "Spectator",
+          skin: liveSkin || presenceSkin || null
+        };
+      })
       .sort((a, b) => {
         if (a.isSelf && !b.isSelf) return -1;
         if (!a.isSelf && b.isSelf) return 1;

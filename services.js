@@ -229,6 +229,31 @@
       return this.user.user_metadata?.display_name || this.user.email || this.playerId || "Player";
     }
 
+    getCurrentEquippedSkinColors() {
+      try {
+        const profile = this.loadPlayerProfile();
+        const content = window.ProgressionContent || {};
+        const catalog = Array.isArray(content.COSMETIC_SHOP_ITEMS) ? content.COSMETIC_SHOP_ITEMS : [];
+        const skins = Array.isArray(content.SUBMARINE_SKINS) ? content.SUBMARINE_SKINS : [];
+        const subItemId = profile && profile.equippedCosmetics ? profile.equippedCosmetics.submarine : null;
+        let resolvedSkinId = profile && profile.equippedSkinId ? profile.equippedSkinId : "classic";
+        if (subItemId) {
+          const item = catalog.find((i) => i && i.id === subItemId && i.category === "submarines");
+          if (item && item.skinMap) resolvedSkinId = item.skinMap;
+        }
+        const skin = skins.find((s) => s && s.id === resolvedSkinId) || skins[0];
+        const colors = skin && skin.colors ? skin.colors : null;
+        if (!colors || !colors.body || !colors.accent || !colors.trim) return null;
+        return {
+          body: String(colors.body),
+          accent: String(colors.accent),
+          trim: String(colors.trim)
+        };
+      } catch (error) {
+        return null;
+      }
+    }
+
     loadPlayerProfile() {
       return loadLocalProfile(this.storageKey);
     }
@@ -436,6 +461,7 @@
           payload: {
             displayName: this.getCurrentDisplayName(),
             userId: this.user.id,
+            skin: this.getCurrentEquippedSkinColors(),
             ts: Date.now()
           }
         });
@@ -471,7 +497,14 @@
                 userId: String((m && m.userId) || k || ""),
                 displayName: String((m && m.displayName) || "Player"),
                 deviceType: String((m && m.deviceType) || "unknown"),
-                seenAt: Number((m && m.ts) || Date.now())
+                seenAt: Number((m && m.ts) || Date.now()),
+                skin: m && m.skin && m.skin.body && m.skin.accent && m.skin.trim
+                  ? {
+                      body: String(m.skin.body),
+                      accent: String(m.skin.accent),
+                      trim: String(m.skin.trim)
+                    }
+                  : null
               });
             });
           });
@@ -492,6 +525,7 @@
                 userId: this.user.id || this.playerId,
                 displayName: this.getCurrentDisplayName(),
                 deviceType: (typeof document !== "undefined" && document.body && document.body.classList.contains("mobile-ui")) ? "mobile" : "desktop",
+                skin: this.getCurrentEquippedSkinColors(),
                 ts: Date.now()
               });
               emitRoster();
@@ -528,7 +562,14 @@
           uniqueByUser.set(userId, {
             displayName: row.payload?.displayName || "Player",
             userId,
-            createdAt: row.created_at
+            createdAt: row.created_at,
+            skin: row.payload && row.payload.skin && row.payload.skin.body && row.payload.skin.accent && row.payload.skin.trim
+              ? {
+                  body: String(row.payload.skin.body),
+                  accent: String(row.payload.skin.accent),
+                  trim: String(row.payload.skin.trim)
+                }
+              : null
           });
           if (uniqueByUser.size >= limit) break;
         }
@@ -541,7 +582,9 @@
 
     useGlobalAuthoritativeRounds() {
       const cfg = window.SUPABASE_CONFIG || {};
-      return !!(cfg.useGlobalAuthoritativeRounds && this.supabase);
+      if (!this.supabase) return false;
+      // Default to server-authoritative rounds unless explicitly disabled.
+      return cfg.useGlobalAuthoritativeRounds !== false;
     }
 
     async rpcServerNowMs() {
