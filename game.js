@@ -104,6 +104,14 @@
   }
   function hashString(str) { return cyrb128(str).map((n) => n.toString(16).padStart(8, "0")).join(""); }
   function createRoundRng(nonce) { const [a, b, c, d] = cyrb128(`${gameState.serverSeed}:${gameState.clientSeed}:${nonce}`); return sfc32(a, b, c, d); }
+  function safeFairnessHashFromRow(row) {
+    const fromRow = row && row.id ? String(row.id).replace(/-/g, "").slice(0, 24) : "";
+    const existing = gameState.serverSeedHash ? String(gameState.serverSeedHash).slice(0, 24) : "";
+    const fallback = hashString(`fallback-${Date.now()}-${Math.random()}`).slice(0, 24);
+    const fair = fromRow || existing || fallback;
+    gameState.serverSeedHash = fair;
+    return fair;
+  }
   function initFairnessSeed() {
     const salt = `${Date.now()}-${Math.random()}-${performance.now()}`;
     gameState.serverSeed = hashString(`server-${salt}`);
@@ -753,7 +761,7 @@
     gameState.countdownDurationMs = 10000;
     ui.setPhase("Prepare your submarine...");
     ui.setLuckyRound(false);
-    ui.setFairness(gameState.serverSeedHash.slice(0, 24), gameState.nonce);
+    ui.setFairness(safeFairnessHashFromRow(null), gameState.nonce);
     ui.setBetInfo(gameState.queuedBet, 0);
     updateCashOutButtonState();
     publishRoundState();
@@ -958,8 +966,7 @@
     }
     gameState.roundHostUserId = "";
     gameState.isRoundHost = false;
-    const fair = row && row.id ? String(row.id).replace(/-/g, "").slice(0, 24) : gameState.serverSeedHash.slice(0, 24);
-    gameState.serverSeedHash = fair;
+    const fair = safeFairnessHashFromRow(row);
     ui.setPhase("Prepare your submarine...");
     ui.setLuckyRound(false);
     ui.setFairness(fair, Math.max(0, Number(row.round_seq) - 1));
@@ -1049,8 +1056,7 @@
     gameState.activeBet = 0;
     gameState.roundHostUserId = "";
     gameState.isRoundHost = false;
-    const fair = row.id ? String(row.id).replace(/-/g, "").slice(0, 24) : gameState.serverSeedHash.slice(0, 24);
-    gameState.serverSeedHash = fair;
+    const fair = safeFairnessHashFromRow(row);
     ui.setFairness(fair, Math.max(0, seq - 1));
     ui.setLuckyRound(gameState.isLuckyRound);
     ui.setBetInfo(gameState.queuedBet, 0);
@@ -1975,7 +1981,18 @@
       }
     });
     if (CONFIG.DEV_TOOLS_ENABLED) window.runCrashDistributionTest = runCrashDistributionTest;
-    requestAnimationFrame(function frame() { tick(); requestAnimationFrame(frame); });
+    requestAnimationFrame(function frame() {
+      try {
+        tick();
+      } catch (err) {
+        console.error("tick loop recovered from runtime error", err);
+        ui.showToast("Sync", "Recovered from a runtime fault. Continuing dive loop.");
+        if (!gameState.serverSeedHash) {
+          ui.setFairness(safeFairnessHashFromRow(null), Math.max(0, Number(gameState.nonce) || 0));
+        }
+      }
+      requestAnimationFrame(frame);
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { init(); });
