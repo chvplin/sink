@@ -187,14 +187,37 @@
   }
   async function refreshServerTimeOffset() {
     if (!dataService.supabase || typeof dataService.rpcServerNowMs !== "function") return;
-    const ms = await dataService.rpcServerNowMs();
+    const sampleOffset = async () => {
+      const reqStart = Date.now();
+      const ms = await dataService.rpcServerNowMs();
+      const reqEnd = Date.now();
+      if (ms == null) return null;
+      const rtt = Math.max(0, reqEnd - reqStart);
+      const midpoint = reqStart + (rtt / 2);
+      return {
+        ms,
+        rtt,
+        offset: ms - midpoint
+      };
+    };
+    const samples = [];
+    for (let i = 0; i < 3; i += 1) {
+      const sample = await sampleOffset();
+      if (sample) samples.push(sample);
+    }
+    if (samples.length === 0) return;
+    samples.sort((a, b) => a.rtt - b.rtt);
+    const best = samples[0];
+    const prevOffset = Number(gameState.serverTimeOffsetMs || 0);
+    const blendedOffset = prevOffset === 0
+      ? best.offset
+      : ((prevOffset * 0.65) + (best.offset * 0.35));
     // #region agent log
-    fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-B", location: "game.js:refreshServerTimeOffset", message: "rpc server_now_ms result", data: { rpcMs: ms == null ? null : ms, offsetAfter: ms == null ? null : (ms - Date.now()) }, timestamp: Date.now() }) }).catch(() => {});
+    fetch("http://127.0.0.1:7850/ingest/c4c25ade-ca71-4681-8d78-315f00262d21", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "357a69" }, body: JSON.stringify({ sessionId: "357a69", hypothesisId: "H-B", location: "game.js:refreshServerTimeOffset", message: "rpc server_now_ms result", data: { sampleCount: samples.length, bestRttMs: best.rtt, offsetAfter: blendedOffset }, timestamp: Date.now() }) }).catch(() => {});
     // #endregion
-    if (ms == null) return;
-    gameState.serverTimeOffsetMs = ms - Date.now();
+    gameState.serverTimeOffsetMs = blendedOffset;
     gameState._lastServerOffsetRefresh = Date.now();
-    syncLog("server offset refreshed", `${gameState.serverTimeOffsetMs}ms`);
+    syncLog("server offset refreshed", `${gameState.serverTimeOffsetMs.toFixed(1)}ms`, `(best rtt ${best.rtt}ms)`);
   }
   function depthNormFromMultiplier(multiplier) { return clamp(Math.log10(multiplier) / Math.log10(10000), 0, 1); }
   function degradeToLocalLoop(reason) {
