@@ -190,6 +190,7 @@
       this.supabase = createSupabaseClient();
       this.user = null;
       this.storageKey = SAVE_KEY;
+      this._playerPresenceChannel = null;
     }
 
     async getCurrentUser() {
@@ -447,6 +448,66 @@
         console.warn("Join announce error.", error);
         return false;
       }
+    }
+
+    subscribePlayerPresence(onRoster, onChannelStatus) {
+      if (!this.supabase || !this.user || typeof onRoster !== "function") return () => {};
+      if (this._playerPresenceChannel) {
+        try { this.supabase.removeChannel(this._playerPresenceChannel); } catch (e) { /* ignore */ }
+        this._playerPresenceChannel = null;
+      }
+      const ch = this.supabase.channel("global-player-presence", {
+        config: { presence: { key: this.user.id || this.playerId } }
+      });
+      this._playerPresenceChannel = ch;
+      const emitRoster = () => {
+        try {
+          const state = ch.presenceState();
+          const roster = [];
+          Object.keys(state || {}).forEach((k) => {
+            const metas = Array.isArray(state[k]) ? state[k] : [];
+            metas.forEach((m) => {
+              roster.push({
+                userId: String((m && m.userId) || k || ""),
+                displayName: String((m && m.displayName) || "Player"),
+                deviceType: String((m && m.deviceType) || "unknown"),
+                seenAt: Number((m && m.ts) || Date.now())
+              });
+            });
+          });
+          onRoster(roster);
+        } catch (e) {
+          onRoster([]);
+        }
+      };
+      ch
+        .on("presence", { event: "sync" }, () => emitRoster())
+        .on("presence", { event: "join" }, () => emitRoster())
+        .on("presence", { event: "leave" }, () => emitRoster())
+        .subscribe(async (status) => {
+          if (typeof onChannelStatus === "function") onChannelStatus(String(status));
+          if (status === "SUBSCRIBED") {
+            try {
+              await ch.track({
+                userId: this.user.id || this.playerId,
+                displayName: this.getCurrentDisplayName(),
+                deviceType: (typeof document !== "undefined" && document.body && document.body.classList.contains("mobile-ui")) ? "mobile" : "desktop",
+                ts: Date.now()
+              });
+              emitRoster();
+            } catch (e) {
+              console.warn("Presence track failed.", e);
+            }
+          }
+        });
+      return () => {
+        try {
+          this.supabase.removeChannel(ch);
+        } catch (e) {
+          console.warn("removeChannel player presence", e);
+        }
+        if (this._playerPresenceChannel === ch) this._playerPresenceChannel = null;
+      };
     }
 
     async fetchRecentPlayerJoins(limit = 25) {

@@ -63,6 +63,7 @@
     joinPollPrimed: false,
     recentJoinRoster: [],
     playerPresenceByUserId: {},
+    realtimePresenceRoster: [],
     stallRecoveryAttemptForRound: "",
     lastVisibilityResyncAt: 0,
     serverAuthoritativeRounds: false,
@@ -82,6 +83,7 @@
     _lastGlobalProgressAt: 0,
     _lastGlobalSeqSeen: null,
     _lastGlobalStatusSeen: "",
+    _presenceUnsub: null,
     _lastLiveBetsSnapshot: [],
     postRoundSummaryVisible: false,
     _postRoundSummaryRoundSeq: null,
@@ -1897,6 +1899,21 @@
         });
       }
     });
+    const realtimePresence = Array.isArray(gameState.realtimePresenceRoster) ? gameState.realtimePresenceRoster : [];
+    realtimePresence.forEach((p) => {
+      const uid = String(p && p.userId ? p.userId : "").trim();
+      if (!uid) return;
+      upsertPlayerPresence(uid, String((p && p.displayName) || "Player"), Number((p && p.seenAt) || Date.now()));
+      if (uid === meId && rosterMap.has(selfKey)) return;
+      if (!rosterMap.has(uid)) {
+        rosterMap.set(uid, {
+          userId: uid,
+          sourceUserId: uid,
+          name: String((p && p.displayName) || "Player"),
+          isSelf: !!(meId && uid === meId)
+        });
+      }
+    });
     const presenceValues = Object.values(gameState.playerPresenceByUserId || {});
     const presenceCutoff = Date.now() - (90 * 1000);
     presenceValues.forEach((p) => {
@@ -2131,6 +2148,14 @@
     if (typeof dataService.announcePlayerSession === "function") {
       await dataService.announcePlayerSession();
       gameState.lastSessionAnnounceAt = Date.now();
+    }
+    if (typeof dataService.subscribePlayerPresence === "function") {
+      if (gameState._presenceUnsub) {
+        try { gameState._presenceUnsub(); } catch (e) { /* ignore */ }
+      }
+      gameState._presenceUnsub = dataService.subscribePlayerPresence((roster) => {
+        gameState.realtimePresenceRoster = Array.isArray(roster) ? roster : [];
+      }, () => {});
     }
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") return;
