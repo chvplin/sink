@@ -448,6 +448,15 @@ body.mobile-ui .mobile-modal-body .tab-panel {
   overflow: visible;
 }
 
+/* Global modal panel visibility: beats .tab-panel:not(#panel-play){display:none!important} */
+body.mobile-ui #mobile-modal-root .mobile-modal-body .tab-panel,
+body.mobile-ui #mobile-modal-root .mobile-modal-body [id^="panel-"] {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
 body.mobile-ui .mobile-modal-body .friends-panel {
   max-height: none;
 }
