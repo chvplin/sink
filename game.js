@@ -59,6 +59,7 @@
     lastJoinPollAt: 0,
     lastSessionAnnounceAt: 0,
     seenJoinKeys: new Set(),
+    seenJoinUsers: new Set(),
     joinPollPrimed: false,
     recentJoinRoster: [],
     stallRecoveryAttemptForRound: "",
@@ -1666,6 +1667,7 @@
         if (!gameState.joinPollPrimed) {
           gameState.joinPollPrimed = true;
           joins.forEach((j) => {
+            if (j.userId) gameState.seenJoinUsers.add(String(j.userId));
             if (j.userId && j.createdAt) gameState.seenJoinKeys.add(`${j.userId}|${j.createdAt}`);
           });
         } else {
@@ -1674,6 +1676,8 @@
             if (!key || gameState.seenJoinKeys.has(key)) return;
             gameState.seenJoinKeys.add(key);
             if (!j.userId || j.userId === me) return;
+            if (gameState.seenJoinUsers.has(String(j.userId))) return;
+            gameState.seenJoinUsers.add(String(j.userId));
             ui.showPlayerJoinBanner(j.displayName || "Someone");
           });
         }
@@ -1852,6 +1856,19 @@
           userId: uid,
           sourceUserId: uid,
           name: String((j && j.displayName) || "Player"),
+          isSelf: !!(meId && uid === meId)
+        });
+      }
+    });
+    live.forEach((b) => {
+      const uid = String(b && b.userId ? b.userId : "").trim();
+      if (!uid) return;
+      if (uid === meId && rosterMap.has(selfKey)) return;
+      if (!rosterMap.has(uid)) {
+        rosterMap.set(uid, {
+          userId: uid,
+          sourceUserId: uid,
+          name: String((b && b.name) || "Player"),
           isSelf: !!(meId && uid === meId)
         });
       }

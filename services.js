@@ -457,13 +457,21 @@
           .select("payload, created_at")
           .eq("metric", "live_player_join")
           .order("created_at", { ascending: false })
-          .limit(limit);
+          .limit(Math.max(60, limit * 4));
         if (error || !Array.isArray(data)) return [];
-        return data.map((row) => ({
-          displayName: row.payload?.displayName || "Player",
-          userId: row.payload?.userId || "",
-          createdAt: row.created_at
-        }));
+        const uniqueByUser = new Map();
+        for (let i = 0; i < data.length; i += 1) {
+          const row = data[i];
+          const userId = String(row && row.payload && row.payload.userId ? row.payload.userId : "");
+          if (!userId || uniqueByUser.has(userId)) continue;
+          uniqueByUser.set(userId, {
+            displayName: row.payload?.displayName || "Player",
+            userId,
+            createdAt: row.created_at
+          });
+          if (uniqueByUser.size >= limit) break;
+        }
+        return Array.from(uniqueByUser.values());
       } catch (error) {
         console.warn("Join fetch error.", error);
         return [];

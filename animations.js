@@ -16,6 +16,7 @@
         didCrash: false,
         isLuckyRound: false,
         equippedSkin: null,
+        selfDisplayName: "You",
         crashShake: 0,
         cosmeticTrail: "default",
         cosmeticCrash: "default",
@@ -447,6 +448,30 @@
       this.ctx.fillRect(66, -20, 14, 40);
 
       this.ctx.restore();
+
+      // Always label the local player's sub so it's never ambiguous which one is yours.
+      const labelName = String(this.scene.selfDisplayName || "You").slice(0, 18);
+      const tag = "You";
+      this.ctx.save();
+      this.ctx.textAlign = "center";
+      this.ctx.font = "700 14px Segoe UI";
+      const nameW = Math.max(this.ctx.measureText(labelName).width, this.ctx.measureText(tag).width) + 18;
+      const nameH = 34;
+      const boxX = x - (nameW / 2);
+      const boxY = y - 68;
+      this.ctx.fillStyle = "rgba(7, 16, 30, 0.72)";
+      this.ctx.strokeStyle = "rgba(170, 231, 255, 0.7)";
+      this.ctx.lineWidth = 1.4;
+      this.ctx.beginPath();
+      this.ctx.roundRect(boxX, boxY, nameW, nameH, 8);
+      this.ctx.fill();
+      this.ctx.stroke();
+      this.ctx.fillStyle = "rgba(230, 247, 255, 0.98)";
+      this.ctx.fillText(labelName, x, boxY + 14);
+      this.ctx.font = "700 11px Segoe UI";
+      this.ctx.fillStyle = "rgba(136, 255, 176, 0.98)";
+      this.ctx.fillText(tag, x, boxY + 28);
+      this.ctx.restore();
     }
 
     colorFromName(name) {
@@ -523,15 +548,23 @@
         const role = String(sub.roleLabel || (isSelf ? "Player" : "Spectator"));
         this.ctx.save();
         this.ctx.textAlign = "center";
-        this.ctx.font = isSelf ? "700 14px Segoe UI" : "600 12px Segoe UI";
+        this.ctx.font = "600 12px Segoe UI";
+        const nameW = Math.max(this.ctx.measureText(labelName).width, this.ctx.measureText(role).width) + 14;
+        const nameH = 30;
+        const boxX = x - (nameW / 2);
+        const boxY = y - 50;
+        this.ctx.fillStyle = "rgba(7, 16, 30, 0.62)";
+        this.ctx.strokeStyle = "rgba(143, 189, 222, 0.55)";
+        this.ctx.lineWidth = 1.2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(boxX, boxY, nameW, nameH, 7);
+        this.ctx.fill();
+        this.ctx.stroke();
         this.ctx.fillStyle = "rgba(223, 243, 255, 0.98)";
-        this.ctx.strokeStyle = "rgba(10, 22, 40, 0.75)";
-        this.ctx.lineWidth = 3;
-        this.ctx.strokeText(labelName, x, y - (isSelf ? 42 : 30));
-        this.ctx.fillText(labelName, x, y - (isSelf ? 42 : 30));
+        this.ctx.fillText(labelName, x, boxY + 13);
         this.ctx.font = "600 11px Segoe UI";
         this.ctx.fillStyle = role === "Player" ? "rgba(130, 255, 170, 0.95)" : "rgba(190, 220, 255, 0.9)";
-        this.ctx.fillText(role, x, y - (isSelf ? 26 : 16));
+        this.ctx.fillText(role, x, boxY + 26);
         this.ctx.restore();
         cursorX += subWidth + gap;
       }
