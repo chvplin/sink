@@ -57,6 +57,7 @@
     lastChallengeRealtimeCheckAt: 0,
     lastChatPollAt: 0,
     lastJoinPollAt: 0,
+    lastSessionAnnounceAt: 0,
     seenJoinKeys: new Set(),
     joinPollPrimed: false,
     recentJoinRoster: [],
@@ -1645,6 +1646,10 @@
 
   async function pollSocialLayer(now) {
     if (!dataService.supabase || !dataService.user) return;
+    if (typeof dataService.announcePlayerSession === "function" && (now - gameState.lastSessionAnnounceAt > 15000)) {
+      gameState.lastSessionAnnounceAt = now;
+      void dataService.announcePlayerSession();
+    }
     if (now - gameState.lastChatPollAt > 1800) {
       gameState.lastChatPollAt = now;
       if (typeof dataService.fetchRecentChatMessages === "function") {
@@ -1835,7 +1840,7 @@
         isSelf: true
       });
     }
-    const freshnessCutoff = Date.now() - (2 * 60 * 1000);
+    const freshnessCutoff = Date.now() - (75 * 1000);
     const joins = Array.isArray(gameState.recentJoinRoster) ? gameState.recentJoinRoster : [];
     joins.forEach((j) => {
       const uid = String(j && j.userId ? j.userId : "").trim();
@@ -1858,6 +1863,11 @@
         isSelf: !!p.isSelf,
         roleLabel: activeByUser.has(p.sourceUserId || p.userId) ? "Player" : "Spectator"
       }))
+      .sort((a, b) => {
+        if (a.isSelf && !b.isSelf) return -1;
+        if (!a.isSelf && b.isSelf) return 1;
+        return String(a.name).localeCompare(String(b.name));
+      })
       .slice(0, 12);
     return roster;
   }
@@ -2059,6 +2069,7 @@
     }
     if (typeof dataService.announcePlayerSession === "function") {
       await dataService.announcePlayerSession();
+      gameState.lastSessionAnnounceAt = Date.now();
     }
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") return;
